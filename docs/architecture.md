@@ -13,9 +13,13 @@ SimpleBlog 是一个单站点、多用户的博客后端 API。项目保持小�
 
 相关文档：
 
+- [配置说明](configuration.md)
+- [运行与部署](operations.md)
 - [数据库设计](database.md)
 - [权限设计](permissions.md)
 - [API 设计](api.md)
+- [测试与验收](testing.md)
+- [已知边界](limitations.md)
 
 ## 2. 总体结构
 
@@ -50,11 +54,18 @@ router -> middleware / handler -> service -> repository -> PostgreSQL
 - `repository` 不依赖 HTTP、DTO 或 response。
 - 角色、文章所有权和状态流转必须在 `service` 判断。
 - `model` 不直接作为公开响应，防止泄露密码哈希和评论邮箱。
-- `main.go` 是唯一组合根，负责显式创建并注入所有依赖。
+- `cmd/server/main.go` 是 HTTP 服务组合根；`cmd/admin/main.go` 是一次性初始化 CLI 组合根。两者都显式创建并注入依赖。
 
-## 3. 建议文件
+## 3. 当前目录与职责
 
 ```text
+cmd/
+  server/main.go
+  admin/main.go
+
+internal/config/
+  config.go
+
 internal/model/
   user.go
   category.go
@@ -66,6 +77,7 @@ internal/dto/
   user.go
   category.go
   post.go
+  public.go
   comment.go
   upload.go
 
@@ -74,37 +86,59 @@ internal/repository/
   category.go
   post.go
   comment.go
+  errors.go
+  slow_query.go
 
 internal/service/
   auth.go
   user.go
   category.go
   post.go
+  public.go
   comment.go
   upload.go
   turnstile.go
+  errors.go
+  pagination.go
 
 internal/handler/
   auth.go
   user.go
   category.go
   post.go
+  public.go
   comment.go
   upload.go
+  service.go
+  json.go
 
 internal/middleware/
   auth.go
-  role.go
   turnstile.go
+  request.go
+  rate_limit.go
+  recovery.go
 
 internal/router/
   public.go
   auth.go
+  router.go
   admin.go
   service.go
 
+internal/response/
+  response.go
+
 internal/storage/
   s3.go
+
+internal/utils/
+  logging.go
+  utils.go
+
+migrations/
+  000001_init.sql
+  000002_optimize_indexes.sql
 ```
 
 M1 已将原有 `Admin` 模型、`AdminHandler` 和 `AuthRepository` 统一改为 `User`、`AuthHandler`/`UserHandler` 和 `UserRepository`。认证查询复用 `UserRepository.GetByUsername`，没有创建重复的数据访问实现。
@@ -156,7 +190,7 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 - 回复指向直属父评论。
 - 父评论必须与回复属于同一文章。
 - `parent_id` 创建后不可修改，避免环和跨树移动。
-- API 可返回平铺数据和 parent_id，或由 CommentService 组装 replies 树；第一版推荐服务端组装树。
+- 公开 API 由 CommentService 按 parent_id 组装 `replies` 树，同时保留每个节点的真实 parent_id。
 - 后端不限制回复深度；前端采用类似 B 站的平铺视觉，不随真实层级持续增加缩进。
 
 隐藏或删除父评论时必须保留树节点：

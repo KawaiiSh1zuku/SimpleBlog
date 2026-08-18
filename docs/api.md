@@ -1,5 +1,7 @@
 # SimpleBlog API 设计
 
+配套文档：[权限模型](permissions.md)、[配置说明](configuration.md)、[运行与部署](operations.md)。当前路由没有 `/api` 前缀。
+
 ## 1. 响应契约
 
 所有由应用程序处理并返回的业务结果统一使用 HTTP 200。真实结果由 JSON `code` 字段表示：
@@ -47,6 +49,8 @@
 
 反向代理、网络中断和进程崩溃不属于应用可控制的业务响应，仍可能产生真实非 200 或无响应。日志和监控必须按 body code/结构化日志统计错误，不能只统计 HTTP 状态。
 
+有请求体的接口按 JSON 解析，客户端应发送 `Content-Type: application/json`；未知字段会被拒绝。全局请求体上限为 2 MiB，文章正文另限 1 MiB。成功或失败都可能省略空 `data`。
+
 ## 2. 路由分组
 
 ```text
@@ -65,10 +69,23 @@ POST /auth/login
 GET  /auth/me
 ```
 
+登录请求：
+
+```json
+{"username": "admin", "password": "your-password"}
+```
+
+成功时 `data` 为：
+
+```json
+{"token": "jwt", "expires_at": "2026-08-19T12:00:00Z"}
+```
+
 - login 接收 username 和 password，成功后签发 24 小时有效的 JWT。
 - login 按客户端 IP 限制为每分钟 10 次；超限仍返回 HTTP 200，响应体 code 为 429。
 - me 返回当前用户的 id、username、nickname、avatar_url 和 role。
 - JWT 使用 `Authorization: Bearer <token>`。
+- `/auth/me` 返回 `id`、`username`、`nickname`、`avatar_url`、`role`、`created_at` 和 `updated_at`，不返回密码哈希。
 
 ## 4. 公开文章与分类
 
@@ -141,20 +158,24 @@ POST /posts/{slug}/comments
 - nickname 最大 80 个 Unicode 字符，email 必须是单一有效邮箱地址，parent_id 必须属于同一篇文章。
 - 允许回复 hidden/deleted 节点；回复仍保留真实 parent_id。
 
-评论响应推荐返回树结构：
+`GET /posts/{slug}/comments` 的 `data` 返回根评论数组，每个节点递归包含 `replies`：
 
 ```json
-{
-  "id": "uuid",
-  "parent_id": null,
-  "nickname": "visitor",
-  "avatar_url": "https://www.gravatar.com/avatar/hash?d=identicon",
-  "content": "comment content",
-  "status": "visible",
-  "created_at": "2026-08-18T12:00:00Z",
-  "replies": []
-}
+[
+  {
+    "id": "uuid",
+    "parent_id": null,
+    "nickname": "visitor",
+    "avatar_url": "https://www.gravatar.com/avatar/hash?d=identicon",
+    "content": "comment content",
+    "status": "visible",
+    "created_at": "2026-08-18T12:00:00Z",
+    "replies": []
+  }
+]
 ```
+
+创建成功时 `data` 是新评论的单个节点，`replies` 为空数组。
 
 hidden/deleted 节点返回占位内容、空 `avatar_url`，但保留 replies。deleted 节点固定显示“该评论已被删除”。后端不限制回复深度；前端采用类似 B 站的不随层级增加缩进的展示，但不能改变真实 parent_id 关系。
 
@@ -175,6 +196,12 @@ PUT    /admin/users/{id}/password
 
 DELETE 执行软删除。修改密码使用独立路由，避免普通资料更新误改凭据。
 管理员不能删除自己；删除或降级最后一个有效 admin 返回业务 code 409。用户名、昵称与角色更新使用 PATCH，未提供字段保持不变。
+
+创建用户请求字段为 `username`、`password`、`nickname`、`avatar_url` 和 `role`。PATCH 只接受 `username`、`nickname`、`avatar_url`、`role`；修改密码请求固定为：
+
+```json
+{"password": "new-strong-password"}
+```
 
 ## 7. 文章后台
 
@@ -226,6 +253,10 @@ DELETE /admin/categories/{id}
 ```
 
 分类写入字段为 `name`、`slug` 和可选 `description`。slug 使用与文章相同的格式，最大 100 字符；name 最大 80 个 Unicode 字符。
+
+```json
+{"name": "Tech", "slug": "tech", "description": "Technology posts"}
+```
 
 存在关联文章的分类不能删除，返回业务 code 409。
 
@@ -301,6 +332,30 @@ POST /admin/uploads/presign
 
 ```text
 GET /service/ping
+GET /service/test_turnstile
 ```
 
-后续部署需要时可以拆分存活与就绪检查，但第一版保留单个轻量端点即可。
+`/service/ping` 返回当前识别的客户端 IP，不访问数据库，是轻量存活端点而非数据库就绪检查。
+
+`/service/test_turnstile` 需要 `X-Turnstile-Token` 请求头，仅用于检查 Turnstile siteverify 配置。缺失或验证失败遵循统一业务响应协议。
+
+## 12. 输入与分页限制
+
+| 项目 | 限制 |
+|---|---|
+| 全局请求体 | 最大 2 MiB |
+| username | 3–64 个 Unicode 字符 |
+| password | 10–72 字节 |
+| 用户 nickname | 1–80 个 Unicode 字符 |
+| 用户 avatar_url | 最大 2048 个 Unicode 字符 |
+| 分类 name / slug / description | 1–80 / 最大 100 / 最大 2000 个 Unicode 字符 |
+| 文章 title / slug | 1–200 / 最大 160 个 Unicode 字符 |
+| 文章 summary / content | 最大 1000 个 Unicode 字符 / 最大 1 MiB（按 UTF-8 字节数） |
+| 文章 tags | 最多 10 个，每项最多 30 个 Unicode 字符 |
+| 评论 nickname / email / content | 最大 80 / 最大 254 / 最大 10000 个 Unicode 字符 |
+| 上传 filename / size | 最大 255 个 Unicode 字符 / 1 字节到 10 MiB |
+| 公开文章分页 | 默认 20，`limit` 最大 100 |
+| 后台文章、评论分页 | 默认 50，`limit` 最大 100 |
+| 不透明 cursor | Base64URL 字符串，最大 512 字符，只能原样回传 |
+
+slug 会被 trim 并转为小写，只允许字母、数字及分隔单词的单连字符。JSON 顶层对象之后不能附加第二个 JSON 值。
