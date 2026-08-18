@@ -17,8 +17,7 @@ func NewAuthHandler(auth *service.AuthService) *AuthHandler { return &AuthHandle
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var request dto.LoginRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	result, err := h.Auth.Login(r.Context(), request.Username, request.Password)

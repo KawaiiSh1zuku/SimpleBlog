@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type currentUserStoreStub struct {
@@ -88,6 +89,20 @@ func TestAuthenticateReturnsInternalErrorForStoreFailure(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	r.ServeHTTP(recorder, request)
 	assertBusinessCode(t, recorder, http.StatusInternalServerError)
+}
+
+func TestAuthenticateMapsRetryableStoreFailureToUnavailable(t *testing.T) {
+	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
+	_, token, _ := tokenAuth.Encode(map[string]any{"sub": uuid.NewString()})
+	r := chi.NewRouter()
+	r.Use(jwtauth.Verifier(tokenAuth))
+	r.Use(Authenticate(currentUserStoreStub{err: &pgconn.PgError{Code: "40P01"}}))
+	r.Get("/", func(http.ResponseWriter, *http.Request) {})
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	recorder := httptest.NewRecorder()
+	r.ServeHTTP(recorder, request)
+	assertBusinessCode(t, recorder, http.StatusServiceUnavailable)
 }
 
 func assertBusinessCode(t *testing.T, recorder *httptest.ResponseRecorder, want int) {

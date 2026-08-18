@@ -108,8 +108,8 @@ func TestCommentRepositoryNestedRepliesAndTombstones(t *testing.T) {
 		t.Fatalf("ListPublicByPostSlug() = %d, %v, %v", len(publicComments), exists, err)
 	}
 	for _, comment := range publicComments {
-		if comment.Email != "" {
-			t.Fatalf("public query loaded email: %+v", comment)
+		if comment.Email == "" {
+			t.Fatalf("public query did not load email for avatar generation: %+v", comment)
 		}
 	}
 	if _, err := comments.Hide(ctx, root.ID); err != nil {
@@ -132,7 +132,7 @@ func TestCommentRepositoryNestedRepliesAndTombstones(t *testing.T) {
 	if err != nil || !exists || len(publicComments) != 4 || publicComments[0].Status != model.CommentStatusDeleted {
 		t.Fatalf("public comments after tombstone = %+v, %v, %v", publicComments, exists, err)
 	}
-	managed, err := comments.ListManaged(ctx, &author.ID)
+	managed, err := comments.ListManaged(ctx, repository.ListCommentsParams{AuthorID: &author.ID, Limit: 100})
 	if err != nil || len(managed) != 4 {
 		t.Fatalf("ListManaged() = %d, %v", len(managed), err)
 	}

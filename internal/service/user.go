@@ -13,6 +13,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const maxAvatarURLRunes = 2048
+
 type UserStore interface {
 	GetByID(context.Context, uuid.UUID) (*model.User, error)
 	List(context.Context) ([]model.User, error)
@@ -48,7 +50,8 @@ func (s *UserService) List(ctx context.Context, actor *model.User) ([]model.User
 	if !isAdmin(actor) {
 		return nil, ErrForbidden
 	}
-	return s.Users.List(ctx)
+	users, err := s.Users.List(ctx)
+	return users, mapStoreAvailability(err)
 }
 
 func (s *UserService) Get(ctx context.Context, actor *model.User, id uuid.UUID) (*model.User, error) {
@@ -122,7 +125,7 @@ func buildUser(input CreateUserInput) (*model.User, error) {
 	input.Nickname = strings.TrimSpace(input.Nickname)
 	input.AvatarURL = strings.TrimSpace(input.AvatarURL)
 	if !validText(input.Username, 3, 64) || !validText(input.Nickname, 1, 80) ||
-		!validPassword(input.Password) || !input.Role.Valid() {
+		!validText(input.AvatarURL, 0, maxAvatarURLRunes) || !validPassword(input.Password) || !input.Role.Valid() {
 		return nil, ErrInvalidInput
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
@@ -156,6 +159,9 @@ func validateUpdate(input UpdateUserInput) (repository.UpdateUserParams, error) 
 	}
 	if input.AvatarURL != nil {
 		value := strings.TrimSpace(*input.AvatarURL)
+		if !validText(value, 0, maxAvatarURLRunes) {
+			return params, ErrInvalidInput
+		}
 		params.AvatarURL = &value
 	}
 	if input.Role != nil && !input.Role.Valid() {
@@ -183,6 +189,10 @@ func mapUserStoreError(err error) error {
 		return ErrLastAdmin
 	case errors.Is(err, repository.ErrAdminExists), repository.IsUniqueViolation(err):
 		return ErrConflict
+	case repository.IsInputViolation(err):
+		return ErrInvalidInput
+	case repository.IsRetryable(err):
+		return ErrUnavailable
 	default:
 		return err
 	}

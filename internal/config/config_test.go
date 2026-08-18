@@ -51,6 +51,26 @@ func TestConfigValidateRejectsInvalidS3PublicURL(t *testing.T) {
 	}
 }
 
+func TestConfigValidateRejectsInvalidGravatarURL(t *testing.T) {
+	cfg := validConfig()
+	cfg.Gravatar.BaseURL = "javascript:alert(1)"
+
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "GRAVATAR_BASE_URL") {
+		t.Fatalf("Validate() did not reject invalid Gravatar URL: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsInvalidSlowQueryThreshold(t *testing.T) {
+	cfg := validConfig()
+	cfg.Database.SlowQueryMS = 0
+
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "DB_SLOW_QUERY_MS") {
+		t.Fatalf("Validate() did not reject invalid slow-query threshold: %v", err)
+	}
+}
+
 func TestConfigValidateRejectsInvalidPorts(t *testing.T) {
 	cfg := validConfig()
 	cfg.Server.Port = "0"
@@ -99,12 +119,13 @@ func validConfig() *Config {
 			Port: "8080",
 		},
 		Database: DatabaseConfig{
-			Host:     "localhost",
-			Port:     "5432",
-			Username: "postgres",
-			Password: "a-secure-password",
-			DBName:   "simpleblog",
-			SSLMode:  "disable",
+			Host:        "localhost",
+			Port:        "5432",
+			Username:    "postgres",
+			Password:    "a-secure-password",
+			DBName:      "simpleblog",
+			SSLMode:     "disable",
+			SlowQueryMS: 250,
 		},
 		JWT:       JWTConfig{Secret: strings.Repeat("j", 32)},
 		Turnstile: TurnstileConfig{Secret: "turnstile-secret"},
@@ -113,5 +134,6 @@ func validConfig() *Config {
 			AccessKey: "access-key", SecretKey: "secret-key", UseSSL: true,
 			PublicBaseURL: "https://cdn.example.com",
 		},
+		Gravatar: GravatarConfig{BaseURL: "https://www.gravatar.com/avatar"},
 	}
 }

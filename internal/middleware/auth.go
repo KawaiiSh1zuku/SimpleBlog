@@ -3,11 +3,12 @@ package middleware
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/repository"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/utils"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -36,8 +37,12 @@ func Authenticate(users CurrentUserStore) func(http.Handler) http.Handler {
 				return
 			}
 			if err != nil {
-				slog.ErrorContext(r.Context(), "load authenticated user", "error", err)
-				response.Error(w, http.StatusInternalServerError, "internal server error")
+				utils.LogError(r.Context(), "load authenticated user", err)
+				if repository.IsRetryable(err) {
+					response.Error(w, http.StatusServiceUnavailable, "temporarily unavailable")
+				} else {
+					response.Error(w, http.StatusInternalServerError, "internal server error")
+				}
 				return
 			}
 			ctx := context.WithValue(r.Context(), currentUserContextKey{}, user)

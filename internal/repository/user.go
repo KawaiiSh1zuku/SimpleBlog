@@ -43,8 +43,8 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*m
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
-	return scanUser(r.DB.QueryRow(ctx, `
-		SELECT id, username, password_hash, nickname,
+	return scanSafeUser(r.DB.QueryRow(ctx, `
+		SELECT id, username, nickname,
 		       COALESCE(avatar_url, ''), role, created_at, updated_at, deleted_at
 		FROM users
 		WHERE id = $1 AND deleted_at IS NULL
@@ -53,7 +53,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 
 func (r *UserRepository) List(ctx context.Context) ([]model.User, error) {
 	rows, err := r.DB.Query(ctx, `
-		SELECT id, username, password_hash, nickname,
+		SELECT id, username, nickname,
 		       COALESCE(avatar_url, ''), role, created_at, updated_at, deleted_at
 		FROM users
 		WHERE deleted_at IS NULL
@@ -66,7 +66,7 @@ func (r *UserRepository) List(ctx context.Context) ([]model.User, error) {
 
 	users := make([]model.User, 0)
 	for rows.Next() {
-		user, err := scanUser(rows)
+		user, err := scanSafeUser(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -214,10 +214,10 @@ type rowScanner interface {
 }
 
 func createUser(ctx context.Context, db database, user *model.User) (*model.User, error) {
-	return scanUser(db.QueryRow(ctx, `
+	return scanSafeUser(db.QueryRow(ctx, `
 		INSERT INTO users (id, username, password_hash, nickname, avatar_url, role)
 		VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6)
-		RETURNING id, username, password_hash, nickname,
+		RETURNING id, username, nickname,
 		          COALESCE(avatar_url, ''), role, created_at, updated_at, deleted_at
 	`, user.ID, user.Username, user.PasswordHash, user.Nickname, user.AvatarURL, user.Role))
 }
@@ -229,7 +229,7 @@ func updateUser(ctx context.Context, db database, id uuid.UUID, params UpdateUse
 		avatarURL = *params.AvatarURL
 	}
 
-	return scanUser(db.QueryRow(ctx, `
+	return scanSafeUser(db.QueryRow(ctx, `
 		UPDATE users
 		SET username = COALESCE($2, username),
 		    nickname = COALESCE($3, nickname),
@@ -237,7 +237,7 @@ func updateUser(ctx context.Context, db database, id uuid.UUID, params UpdateUse
 		    role = COALESCE($6, role),
 		    updated_at = NOW()
 		WHERE id = $1 AND deleted_at IS NULL
-		RETURNING id, username, password_hash, nickname,
+		RETURNING id, username, nickname,
 		          COALESCE(avatar_url, ''), role, created_at, updated_at, deleted_at
 	`, id, params.Username, params.Nickname, hasAvatarURL, avatarURL, params.Role))
 }
@@ -260,7 +260,27 @@ func scanUser(row rowScanner) (*model.User, error) {
 	return &user, nil
 }
 
+func scanSafeUser(row rowScanner) (*model.User, error) {
+	var user model.User
+	if err := row.Scan(
+		&user.ID,
+		&user.Username,
+		&user.Nickname,
+		&user.AvatarURL,
+		&user.Role,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.DeletedAt,
+	); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func lockAdminGuard(ctx context.Context, tx pgx.Tx) error {
+	if _, err := tx.Exec(ctx, "SELECT set_config('lock_timeout', $1, true)", "3s"); err != nil {
+		return err
+	}
 	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", adminGuardLockID)
 	return err
 }

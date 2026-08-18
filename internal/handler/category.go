@@ -45,8 +45,7 @@ func (h *CategoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var request dto.CreateCategoryRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())
@@ -66,8 +65,7 @@ func (h *CategoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request dto.UpdateCategoryRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())

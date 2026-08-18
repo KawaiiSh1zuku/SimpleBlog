@@ -14,11 +14,12 @@ import (
 )
 
 type CommentHandler struct {
-	Comments *service.CommentService
+	Comments        *service.CommentService
+	GravatarBaseURL string
 }
 
-func NewCommentHandler(comments *service.CommentService) *CommentHandler {
-	return &CommentHandler{Comments: comments}
+func NewCommentHandler(comments *service.CommentService, gravatarBaseURL string) *CommentHandler {
+	return &CommentHandler{Comments: comments, GravatarBaseURL: gravatarBaseURL}
 }
 
 func (h *CommentHandler) ListPublic(w http.ResponseWriter, r *http.Request) {
@@ -27,13 +28,12 @@ func (h *CommentHandler) ListPublic(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.Success(w, dto.NewPublicCommentTree(comments))
+	response.Success(w, dto.NewPublicCommentTree(comments, h.GravatarBaseURL))
 }
 
 func (h *CommentHandler) CreatePublic(w http.ResponseWriter, r *http.Request) {
 	var request dto.CreateCommentRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	comment, err := h.Comments.Create(r.Context(), chi.URLParam(r, "slug"), service.CreateCommentInput{
@@ -44,17 +44,20 @@ func (h *CommentHandler) CreatePublic(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.Success(w, dto.NewPublicCommentResponse(comment))
+	response.Success(w, dto.NewPublicCommentResponse(comment, h.GravatarBaseURL))
 }
 
 func (h *CommentHandler) ListManaged(w http.ResponseWriter, r *http.Request) {
 	actor, _ := appmiddleware.CurrentUser(r.Context())
-	comments, err := h.Comments.ListManaged(r.Context(), actor)
+	query := r.URL.Query()
+	page, err := h.Comments.ListManaged(r.Context(), actor, service.ListManagedCommentsInput{
+		Limit: query.Get("limit"), Cursor: query.Get("cursor"),
+	})
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.Success(w, dto.NewManagedCommentResponses(comments))
+	response.Success(w, dto.NewManagedCommentPageResponse(page.Items, page.NextCursor))
 }
 
 func (h *CommentHandler) Hide(w http.ResponseWriter, r *http.Request) {

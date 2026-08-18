@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
@@ -16,12 +17,30 @@ type postStoreStub struct {
 	created    *model.Post
 	updated    repository.UpdatePostParams
 	listAuthor *uuid.UUID
+	listLimit  int
 	published  bool
 	withdrawn  bool
 }
 
-func (stub *postStoreStub) List(_ context.Context, authorID *uuid.UUID) ([]model.Post, error) {
-	stub.listAuthor = authorID
+func TestPostServiceRejectsOversizedContentAndSummary(t *testing.T) {
+	service := NewPostService(&postStoreStub{})
+	actor := &model.User{ID: uuid.New(), Role: model.RoleContributor}
+	base := CreatePostInput{CategoryID: uuid.New(), Slug: "post", Title: "Post", Content: "body"}
+	oversizedContent := base
+	oversizedContent.Content = strings.Repeat("x", MaxPostContentBytes+1)
+	if _, err := service.Create(context.Background(), actor, oversizedContent); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("oversized content error = %v", err)
+	}
+	oversizedSummary := base
+	oversizedSummary.Summary = strings.Repeat("界", maxPostSummaryRunes+1)
+	if _, err := service.Create(context.Background(), actor, oversizedSummary); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("oversized summary error = %v", err)
+	}
+}
+
+func (stub *postStoreStub) List(_ context.Context, params repository.ListPostsParams) ([]model.PostSummary, error) {
+	stub.listAuthor = params.AuthorID
+	stub.listLimit = params.Limit
 	return nil, nil
 }
 func (stub *postStoreStub) GetByID(context.Context, uuid.UUID) (*model.Post, error) {
@@ -83,17 +102,20 @@ func TestPostServiceScopesContributorAndAdmin(t *testing.T) {
 	if _, err := service.Get(context.Background(), &model.User{Role: model.RoleAdmin}, post.ID); err != nil {
 		t.Fatalf("admin Get() error = %v", err)
 	}
-	if _, err := service.List(context.Background(), contributor); err != nil {
+	if _, err := service.List(context.Background(), contributor, ListManagedPostsInput{}); err != nil {
 		t.Fatalf("contributor List() error = %v", err)
 	}
 	if store.listAuthor == nil || *store.listAuthor != contributor.ID {
 		t.Fatalf("contributor list author = %v", store.listAuthor)
 	}
-	if _, err := service.List(context.Background(), &model.User{Role: model.RoleAdmin}); err != nil {
+	if _, err := service.List(context.Background(), &model.User{Role: model.RoleAdmin}, ListManagedPostsInput{}); err != nil {
 		t.Fatalf("admin List() error = %v", err)
 	}
 	if store.listAuthor != nil {
 		t.Fatalf("admin list author = %v, want nil", store.listAuthor)
+	}
+	if store.listLimit != defaultManagedPageSize+1 {
+		t.Fatalf("managed post repository limit = %d", store.listLimit)
 	}
 }
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
@@ -15,6 +16,16 @@ type categoryStoreStub struct {
 	created   *model.Category
 	updated   repository.UpdateCategoryParams
 	deleteErr error
+}
+
+func TestCategoryServiceRejectsOversizedDescription(t *testing.T) {
+	service := NewCategoryService(&categoryStoreStub{})
+	_, err := service.Create(context.Background(), &model.User{Role: model.RoleAdmin}, CreateCategoryInput{
+		Name: "General", Slug: "general", Description: strings.Repeat("类", maxCategoryDescriptionRunes+1),
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("oversized description error = %v", err)
+	}
 }
 
 func (stub *categoryStoreStub) List(context.Context) ([]model.Category, error) { return nil, nil }

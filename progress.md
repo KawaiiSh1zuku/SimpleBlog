@@ -72,3 +72,18 @@
 - 上传策略限制 JPEG/PNG/WebP/GIF、1 到 10 MiB、精确声明字节数、服务端 key 和 10 分钟有效期；图片数据不经过 Go 服务。
 - 单元/路由测试覆盖角色、MIME、大小、客户端文件名隔离和签名 policy；临时真实 MinIO 已验证 multipart POST 上传与匿名公开读取，随后停止并清理。
 - M5 最终通过 `gofmt -d`、`go mod verify`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 回归、`go build ./...`、静态敏感信息扫描与文档链接检查，准备创建独立签名 commit。
+- 用户验收 M5 并批准进入 M6；补充公开评论需返回按邮箱生成的 Gravatar 头像 URL，且镜像源可配置。
+- 用户确认公开查询可以读取 email，只要前端响应不返回 email；因此采用 DTO 即时哈希方案，不修改 comments schema。
+- 已完成 M6 第一轮代码/SQL/索引审计：发现公开文章列表读取正文、用户安全读取仍取 password_hash、slug 索引表达式不匹配、评论排序索引不匹配、日志原始错误泄露风险及缺少全局 body 限制。
+- 已实现可配置 Gravatar：公开查询读取 email，DTO 仅返回 avatar_url，hidden/deleted 不返回头像；创建与树响应均覆盖镜像源和邮箱规范化测试。
+- 已增加 2 MiB 全局 body 限制、413 业务响应、字段级长度限制、结构化访问日志和数据库错误脱敏日志。
+- 已增加 PostgreSQL 错误分类与 503 映射；公开文章列表移除 content 读取，非登录用户查询移除 password_hash 读取。
+- 已为后台文章/评论增加默认 50、最大 100 的 keyset 分页；后台文章列表 DTO/SQL 不再包含正文。
+- 已加入登录 IP 限流和显式可信代理配置，避免直接部署时伪造 X-Real-IP 绕过 Turnstile/限流。
+- 已新增 000002 索引优化迁移并让所有数据库测试按文件名顺序执行迁移；并发测试验证两个 admin 同时删除时恰有一个被最后管理员保护拒绝。
+- 代表性数据 EXPLAIN 测试已通过：10k users、1k categories、20k posts、50k comments，8 条关键查询均命中预期索引且高增长表无可避免的顺序扫描。
+- 已接入可配置慢查询 tracer 并通过脱敏测试：日志不包含 SQL 文本、查询参数、邮箱或 PostgreSQL Detail。
+- 已同步 API、架构、权限、数据库和 milestone 文档，并新增 PostgreSQL 优化记录与复现方式。
+- 已补测 contributor 评论执行计划并修正全站索引扫描热点；九条代表性查询均通过索引与顺序扫描断言。
+- 已让列表、登录和认证中间件统一把可重试 PostgreSQL 错误映射为业务 code 503。
+- M6 最终通过 `go mod verify`、`gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、`go build ./...`、真实 PostgreSQL 全量集成测试、文档链接与敏感信息一致性扫描，准备创建签名 commit。

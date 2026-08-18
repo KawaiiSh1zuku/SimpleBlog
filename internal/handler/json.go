@@ -4,23 +4,34 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"net/http"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/utils"
 )
 
-func decodeJSON(r *http.Request, target any) error {
+func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		return err
+		writeDecodeError(w, err)
+		return false
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("request body must contain one JSON value")
+		writeDecodeError(w, err)
+		return false
 	}
-	return nil
+	return true
+}
+
+func writeDecodeError(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		response.Error(w, http.StatusRequestEntityTooLarge, "request body too large")
+		return
+	}
+	response.Error(w, http.StatusBadRequest, "invalid request")
 }
 
 func writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
@@ -37,8 +48,10 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 		response.Error(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, service.ErrLastAdmin):
 		response.Error(w, http.StatusConflict, "at least one admin must remain")
+	case errors.Is(err, service.ErrUnavailable):
+		response.Error(w, http.StatusServiceUnavailable, "temporarily unavailable")
 	default:
-		slog.ErrorContext(r.Context(), "request failed", "error", err)
+		utils.LogError(r.Context(), "request failed", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error")
 	}
 }

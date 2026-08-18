@@ -11,6 +11,7 @@ import (
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/handler"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/repository"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
 	"github.com/google/uuid"
 )
@@ -26,7 +27,7 @@ func (store *routeCommentStore) CreateForPublishedPost(_ context.Context, _ stri
 func (*routeCommentStore) ListPublicByPostSlug(context.Context, string) ([]model.Comment, bool, error) {
 	return []model.Comment{}, true, nil
 }
-func (*routeCommentStore) ListManaged(context.Context, *uuid.UUID) ([]model.ManagedComment, error) {
+func (*routeCommentStore) ListManaged(context.Context, repository.ListCommentsParams) ([]model.ManagedComment, error) {
 	return nil, nil
 }
 func (*routeCommentStore) GetManagedByID(context.Context, uuid.UUID) (*model.ManagedComment, error) {
@@ -58,7 +59,7 @@ func TestPublicCommentCreateRequiresTurnstileAndNeverReturnsEmail(t *testing.T) 
 	commentStore := &routeCommentStore{}
 	turnstile := &turnstileVerifierStub{}
 	publicHandler := handler.NewPublicHandler(service.NewPublicService(routePublicPostStore{}, routeCategoryStore{}))
-	commentHandler := handler.NewCommentHandler(service.NewCommentService(commentStore))
+	commentHandler := handler.NewCommentHandler(service.NewCommentService(commentStore), "https://avatar.example/avatar")
 	r := PublicRouter(publicHandler, commentHandler, turnstile)
 	body := []byte(`{"nickname":"Visitor","email":"visitor@example.com","content":"Hello"}`)
 
@@ -82,6 +83,9 @@ func TestPublicCommentCreateRequiresTurnstileAndNeverReturnsEmail(t *testing.T) 
 	if strings.Contains(recorder.Body.String(), "visitor@example.com") || strings.Contains(recorder.Body.String(), "email") {
 		t.Fatalf("public create leaked email: %s", recorder.Body.String())
 	}
+	if !strings.Contains(recorder.Body.String(), "https://avatar.example/avatar/") {
+		t.Fatalf("public create did not return avatar URL: %s", recorder.Body.String())
+	}
 	if commentStore.created == nil || commentStore.created.Email != "visitor@example.com" {
 		t.Fatalf("repository did not receive email: %+v", commentStore.created)
 	}
@@ -91,7 +95,7 @@ func TestPublicCommentCreateMapsFailedTurnstileToForbidden(t *testing.T) {
 	turnstile := &turnstileVerifierStub{err: errors.New("invalid token")}
 	r := PublicRouter(
 		handler.NewPublicHandler(service.NewPublicService(routePublicPostStore{}, routeCategoryStore{})),
-		handler.NewCommentHandler(service.NewCommentService(&routeCommentStore{})),
+		handler.NewCommentHandler(service.NewCommentService(&routeCommentStore{}), "https://avatar.example/avatar"),
 		turnstile,
 	)
 	request := httptest.NewRequest(http.MethodPost, "/posts/post/comments", strings.NewReader(`{}`))

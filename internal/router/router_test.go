@@ -4,10 +4,39 @@ import (
 	"encoding/json"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+func TestProxyHeadersAreOnlyTrustedWhenConfigured(t *testing.T) {
+	publicRoutes := newRouter()
+	publicRoutes.Get("/ip", func(w http.ResponseWriter, r *http.Request) {
+		response.Success(w, chimiddleware.GetClientIP(r.Context()))
+	})
+	for _, test := range []struct {
+		name       string
+		trustProxy bool
+		want       string
+	}{
+		{name: "direct", trustProxy: false, want: "198.51.100.8"},
+		{name: "trusted proxy", trustProxy: true, want: "203.0.113.7"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			r := New(newRouter(), newRouter(), newRouter(), publicRoutes, test.trustProxy)
+			request := httptest.NewRequest(http.MethodGet, "/ip", nil)
+			request.RemoteAddr = "198.51.100.8:1234"
+			request.Header.Set("X-Real-IP", "203.0.113.7")
+			recorder := httptest.NewRecorder()
+			r.ServeHTTP(recorder, request)
+			if !strings.Contains(recorder.Body.String(), test.want) {
+				t.Fatalf("response = %s, want IP %s", recorder.Body.String(), test.want)
+			}
+		})
+	}
+}
 
 func TestFallbackResponsesUseHTTP200AndBusinessCode(t *testing.T) {
 	serviceRoutes := newRouter()

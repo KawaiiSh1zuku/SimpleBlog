@@ -44,7 +44,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Lo
 		return nil, ErrInvalidCredentials
 	}
 	if err != nil {
-		return nil, err
+		return nil, mapStoreAvailability(err)
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
 		return nil, ErrInvalidCredentials

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -87,6 +89,41 @@ func TestUserRepositoryLifecycleAndAdminGuard(t *testing.T) {
 	if _, err := repo.GetByID(ctx, secondAdmin.ID); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("GetByID(soft deleted) error = %v", err)
 	}
+
+	fourthAdmin := repositoryUser("fourth", model.RoleAdmin)
+	if _, err := repo.Create(ctx, fourthAdmin); err != nil {
+		t.Fatalf("Create(fourth admin) error = %v", err)
+	}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for _, id := range []uuid.UUID{thirdAdmin.ID, fourthAdmin.ID} {
+		go func() {
+			<-start
+			results <- repo.SoftDelete(ctx, id)
+		}()
+	}
+	close(start)
+	var succeeded, protected int
+	for range 2 {
+		switch err := <-results; {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, repository.ErrLastAdmin):
+			protected++
+		default:
+			t.Fatalf("concurrent SoftDelete() error = %v", err)
+		}
+	}
+	if succeeded != 1 || protected != 1 {
+		t.Fatalf("concurrent admin deletion = %d success, %d protected", succeeded, protected)
+	}
+	var activeAdmins int
+	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM users WHERE role = 'admin' AND deleted_at IS NULL").Scan(&activeAdmins); err != nil {
+		t.Fatal(err)
+	}
+	if activeAdmins != 1 {
+		t.Fatalf("active admins after concurrent deletion = %d", activeAdmins)
+	}
 }
 
 func repositoryUser(username string, role model.Role) *model.User {
@@ -98,17 +135,24 @@ func repositoryUser(username string, role model.Role) *model.User {
 
 func applyRepositorySchema(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
-	contents, err := os.ReadFile("../../migrations/000001_init.sql")
+	files, err := filepath.Glob("../../migrations/*.sql")
 	if err != nil {
-		t.Fatalf("read schema: %v", err)
+		t.Fatalf("list migrations: %v", err)
 	}
-	schema := strings.TrimSpace(string(contents))
-	schema = strings.TrimPrefix(schema, "BEGIN;")
-	schema = strings.TrimSuffix(schema, "COMMIT;")
-	for _, statement := range strings.Split(schema, ";") {
-		if statement = strings.TrimSpace(statement); statement != "" {
-			if _, err := pool.Exec(ctx, statement); err != nil {
-				t.Fatalf("apply schema: %v\n%s", err, statement)
+	sort.Strings(files)
+	for _, file := range files {
+		contents, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", file, err)
+		}
+		schema := strings.TrimSpace(string(contents))
+		schema = strings.TrimPrefix(schema, "BEGIN;")
+		schema = strings.TrimSuffix(schema, "COMMIT;")
+		for _, statement := range strings.Split(schema, ";") {
+			if statement = strings.TrimSpace(statement); statement != "" {
+				if _, err := pool.Exec(ctx, statement); err != nil {
+					t.Fatalf("apply %s: %v\n%s", file, err, statement)
+				}
 			}
 		}
 	}

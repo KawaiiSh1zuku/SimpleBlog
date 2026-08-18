@@ -13,10 +13,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const MaxCommentContentRunes = 10000
+
 type CommentStore interface {
 	CreateForPublishedPost(context.Context, string, *model.Comment) (*model.Comment, error)
 	ListPublicByPostSlug(context.Context, string) ([]model.Comment, bool, error)
-	ListManaged(context.Context, *uuid.UUID) ([]model.ManagedComment, error)
+	ListManaged(context.Context, repository.ListCommentsParams) ([]model.ManagedComment, error)
 	GetManagedByID(context.Context, uuid.UUID) (*model.ManagedComment, error)
 	Hide(context.Context, uuid.UUID) (*model.Comment, error)
 	Show(context.Context, uuid.UUID) (*model.Comment, error)
@@ -34,6 +36,16 @@ type CreateCommentInput struct {
 	Content  string
 }
 
+type ListManagedCommentsInput struct {
+	Limit  string
+	Cursor string
+}
+
+type ManagedCommentPage struct {
+	Items      []model.ManagedComment
+	NextCursor string
+}
+
 func NewCommentService(comments CommentStore) *CommentService {
 	return &CommentService{Comments: comments}
 }
@@ -45,7 +57,8 @@ func (s *CommentService) Create(ctx context.Context, postSlug string, input Crea
 	}
 	nickname := strings.TrimSpace(input.Nickname)
 	email := strings.TrimSpace(input.Email)
-	if !validText(nickname, 1, 80) || !validEmail(email) || strings.TrimSpace(input.Content) == "" {
+	if !validText(nickname, 1, 80) || !validEmail(email) ||
+		!validText(strings.TrimSpace(input.Content), 1, MaxCommentContentRunes) {
 		return nil, ErrInvalidInput
 	}
 	if input.ParentID != nil && *input.ParentID == uuid.Nil {
@@ -66,7 +79,7 @@ func (s *CommentService) ListPublic(ctx context.Context, postSlug string) ([]mod
 	}
 	comments, exists, err := s.Comments.ListPublicByPostSlug(ctx, postSlug)
 	if err != nil {
-		return nil, err
+		return nil, mapStoreAvailability(err)
 	}
 	if !exists {
 		return nil, ErrNotFound
@@ -74,21 +87,36 @@ func (s *CommentService) ListPublic(ctx context.Context, postSlug string) ([]mod
 	return comments, nil
 }
 
-func (s *CommentService) ListManaged(ctx context.Context, actor *model.User) ([]model.ManagedComment, error) {
+func (s *CommentService) ListManaged(ctx context.Context, actor *model.User, input ListManagedCommentsInput) (*ManagedCommentPage, error) {
 	if !canManagePosts(actor) {
 		return nil, ErrForbidden
+	}
+	limit, cursor, err := parseManagedPage(input.Limit, input.Cursor, "comments")
+	if err != nil {
+		return nil, mapStoreAvailability(err)
 	}
 	var authorID *uuid.UUID
 	if actor.Role == model.RoleContributor {
 		authorID = &actor.ID
 	}
-	return s.Comments.ListManaged(ctx, authorID)
+	comments, err := s.Comments.ListManaged(ctx, repository.ListCommentsParams{AuthorID: authorID, Limit: limit + 1, Cursor: cursor})
+	if err != nil {
+		return nil, mapStoreAvailability(err)
+	}
+	page := &ManagedCommentPage{Items: comments}
+	if len(comments) <= limit {
+		return page, nil
+	}
+	page.Items = comments[:limit]
+	last := page.Items[len(page.Items)-1]
+	page.NextCursor, err = encodeManagedCursor("comments", repository.TimeCursor{At: last.CreatedAt, ID: last.ID})
+	return page, err
 }
 
 func (s *CommentService) Hide(ctx context.Context, actor *model.User, id uuid.UUID) (*model.Comment, error) {
 	comment, err := s.authorizeManaged(ctx, actor, id)
 	if err != nil {
-		return nil, err
+		return nil, mapStoreAvailability(err)
 	}
 	if comment.Status != model.CommentStatusVisible {
 		return nil, ErrConflict
@@ -130,7 +158,7 @@ func (s *CommentService) authorizeManaged(ctx context.Context, actor *model.User
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, mapStoreAvailability(err)
 	}
 	if actor.Role == model.RoleContributor && comment.PostAuthorID != actor.ID {
 		return nil, ErrForbidden
@@ -154,6 +182,10 @@ func mapCreateCommentError(err error) error {
 		return ErrNotFound
 	case repository.IsForeignKeyViolation(err):
 		return ErrInvalidInput
+	case repository.IsInputViolation(err):
+		return ErrInvalidInput
+	case repository.IsRetryable(err):
+		return ErrUnavailable
 	default:
 		return err
 	}
@@ -162,6 +194,9 @@ func mapCreateCommentError(err error) error {
 func mapModerationError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrConflict
+	}
+	if repository.IsRetryable(err) {
+		return ErrUnavailable
 	}
 	return err
 }

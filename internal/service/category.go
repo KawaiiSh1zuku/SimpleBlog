@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const maxCategoryDescriptionRunes = 2000
+
 type CategoryStore interface {
 	List(context.Context) ([]model.Category, error)
 	GetByID(context.Context, uuid.UUID) (*model.Category, error)
@@ -43,7 +45,8 @@ func (s *CategoryService) List(ctx context.Context, actor *model.User) ([]model.
 	if !isAdmin(actor) {
 		return nil, ErrForbidden
 	}
-	return s.Categories.List(ctx)
+	categories, err := s.Categories.List(ctx)
+	return categories, mapStoreAvailability(err)
 }
 
 func (s *CategoryService) Get(ctx context.Context, actor *model.User, id uuid.UUID) (*model.Category, error) {
@@ -91,6 +94,9 @@ func (s *CategoryService) Update(ctx context.Context, actor *model.User, id uuid
 	}
 	if input.Description != nil {
 		value := strings.TrimSpace(*input.Description)
+		if !validText(value, 0, maxCategoryDescriptionRunes) {
+			return nil, ErrInvalidInput
+		}
 		params.Description = &value
 	}
 	updated, err := s.Categories.Update(ctx, id, params)
@@ -106,11 +112,12 @@ func (s *CategoryService) Delete(ctx context.Context, actor *model.User, id uuid
 
 func validateCategory(name, slug, description string) (string, string, string, error) {
 	name = strings.TrimSpace(name)
+	description = strings.TrimSpace(description)
 	slug, ok := normalizeSlug(slug, 100)
-	if !validText(name, 1, 80) || !ok {
+	if !validText(name, 1, 80) || !ok || !validText(description, 0, maxCategoryDescriptionRunes) {
 		return "", "", "", ErrInvalidInput
 	}
-	return name, slug, strings.TrimSpace(description), nil
+	return name, slug, description, nil
 }
 
 func mapCategoryStoreError(err error) error {
@@ -121,6 +128,10 @@ func mapCategoryStoreError(err error) error {
 		return ErrNotFound
 	case repository.IsUniqueViolation(err), repository.IsForeignKeyViolation(err):
 		return ErrConflict
+	case repository.IsInputViolation(err):
+		return ErrInvalidInput
+	case repository.IsRetryable(err):
+		return ErrUnavailable
 	default:
 		return err
 	}

@@ -1,6 +1,9 @@
 package dto
 
 import (
+	"crypto/md5"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
@@ -23,6 +26,7 @@ type PublicCommentResponse struct {
 	ID        uuid.UUID                `json:"id"`
 	ParentID  *uuid.UUID               `json:"parent_id"`
 	Nickname  string                   `json:"nickname"`
+	AvatarURL string                   `json:"avatar_url"`
 	Content   string                   `json:"content"`
 	Status    model.CommentStatus      `json:"status"`
 	CreatedAt time.Time                `json:"created_at"`
@@ -43,34 +47,42 @@ type ManagedCommentResponse struct {
 	ModeratedAt *time.Time          `json:"moderated_at"`
 }
 
+type ManagedCommentPageResponse struct {
+	Items      []ManagedCommentResponse `json:"items"`
+	NextCursor string                   `json:"next_cursor,omitempty"`
+}
+
 type CommentModerationResponse struct {
 	ID          uuid.UUID           `json:"id"`
 	Status      model.CommentStatus `json:"status"`
 	ModeratedAt *time.Time          `json:"moderated_at"`
 }
 
-func NewPublicCommentResponse(comment *model.Comment) *PublicCommentResponse {
+func NewPublicCommentResponse(comment *model.Comment, gravatarBaseURL string) *PublicCommentResponse {
 	nickname := comment.Nickname
 	content := comment.Content
+	avatarURL := gravatarURL(gravatarBaseURL, comment.Email)
 	switch comment.Status {
 	case model.CommentStatusHidden:
 		nickname = hiddenCommentNickname
 		content = ""
+		avatarURL = ""
 	case model.CommentStatusDeleted:
 		nickname = deletedCommentNickname
 		content = ""
+		avatarURL = ""
 	}
 	return &PublicCommentResponse{
 		ID: comment.ID, ParentID: comment.ParentID, Nickname: nickname,
-		Content: content, Status: comment.Status, CreatedAt: comment.CreatedAt,
+		AvatarURL: avatarURL, Content: content, Status: comment.Status, CreatedAt: comment.CreatedAt,
 		Replies: make([]*PublicCommentResponse, 0),
 	}
 }
 
-func NewPublicCommentTree(comments []model.Comment) []*PublicCommentResponse {
+func NewPublicCommentTree(comments []model.Comment, gravatarBaseURL string) []*PublicCommentResponse {
 	nodes := make(map[uuid.UUID]*PublicCommentResponse, len(comments))
 	for index := range comments {
-		nodes[comments[index].ID] = NewPublicCommentResponse(&comments[index])
+		nodes[comments[index].ID] = NewPublicCommentResponse(&comments[index], gravatarBaseURL)
 	}
 	roots := make([]*PublicCommentResponse, 0)
 	for index := range comments {
@@ -91,6 +103,16 @@ func NewPublicCommentTree(comments []model.Comment) []*PublicCommentResponse {
 	return roots
 }
 
+func gravatarURL(baseURL, email string) string {
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	if normalized == "" {
+		return ""
+	}
+	// Gravatar specifies MD5 as a public avatar identifier, not as a security primitive.
+	hash := md5.Sum([]byte(normalized))
+	return strings.TrimRight(baseURL, "/") + "/" + fmt.Sprintf("%x", hash) + "?d=identicon"
+}
+
 func NewManagedCommentResponse(comment *model.ManagedComment) ManagedCommentResponse {
 	return ManagedCommentResponse{
 		ID: comment.ID, PostID: comment.PostID, PostSlug: comment.PostSlug,
@@ -106,6 +128,10 @@ func NewManagedCommentResponses(comments []model.ManagedComment) []ManagedCommen
 		result = append(result, NewManagedCommentResponse(&comments[index]))
 	}
 	return result
+}
+
+func NewManagedCommentPageResponse(comments []model.ManagedComment, nextCursor string) ManagedCommentPageResponse {
+	return ManagedCommentPageResponse{Items: NewManagedCommentResponses(comments), NextCursor: nextCursor}
 }
 
 func NewCommentModerationResponse(comment *model.Comment) CommentModerationResponse {

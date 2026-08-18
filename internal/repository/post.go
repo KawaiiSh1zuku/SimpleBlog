@@ -29,6 +29,17 @@ type PublishedCursor struct {
 	ID          uuid.UUID
 }
 
+type TimeCursor struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+type ListPostsParams struct {
+	AuthorID *uuid.UUID
+	Limit    int
+	Cursor   *TimeCursor
+}
+
 type ListPublishedParams struct {
 	Limit        int
 	CategorySlug string
@@ -38,22 +49,30 @@ type ListPublishedParams struct {
 
 func NewPostRepository(db *pgxpool.Pool) *PostRepository { return &PostRepository{DB: db} }
 
-func (r *PostRepository) List(ctx context.Context, authorID *uuid.UUID) ([]model.Post, error) {
-	query := postSelect
-	args := make([]any, 0, 1)
-	if authorID != nil {
-		query += " WHERE author_id = $1"
-		args = append(args, *authorID)
+func (r *PostRepository) List(ctx context.Context, params ListPostsParams) ([]model.PostSummary, error) {
+	query := postSummarySelect + " WHERE TRUE"
+	args := make([]any, 0, 4)
+	addArgument := func(value any) string {
+		args = append(args, value)
+		return fmt.Sprintf("$%d", len(args))
 	}
-	query += " ORDER BY updated_at DESC, id DESC"
+	if params.AuthorID != nil {
+		query += " AND author_id = " + addArgument(*params.AuthorID)
+	}
+	if params.Cursor != nil {
+		at := addArgument(params.Cursor.At)
+		id := addArgument(params.Cursor.ID)
+		query += " AND (updated_at, id) < (" + at + ", " + id + ")"
+	}
+	query += " ORDER BY updated_at DESC, id DESC LIMIT " + addArgument(params.Limit)
 	rows, err := r.DB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	posts := make([]model.Post, 0)
+	posts := make([]model.PostSummary, 0)
 	for rows.Next() {
-		post, err := scanPost(rows)
+		post, err := scanPostSummary(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -70,14 +89,14 @@ func (r *PostRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Post
 }
 
 func (r *PostRepository) ListPublished(ctx context.Context, params ListPublishedParams) ([]model.PublicPost, error) {
-	query := publicPostSelect + " WHERE p.status = 'published'"
+	query := publicPostListSelect + " WHERE p.status = 'published'"
 	args := make([]any, 0, 5)
 	addArgument := func(value any) string {
 		args = append(args, value)
 		return fmt.Sprintf("$%d", len(args))
 	}
 	if params.CategorySlug != "" {
-		query += " AND c.slug = " + addArgument(params.CategorySlug)
+		query += " AND LOWER(c.slug) = LOWER(" + addArgument(params.CategorySlug) + ")"
 	}
 	if params.Tag != "" {
 		query += " AND p.tags @> ARRAY[" + addArgument(params.Tag) + "]::TEXT[]"
@@ -96,7 +115,7 @@ func (r *PostRepository) ListPublished(ctx context.Context, params ListPublished
 	defer rows.Close()
 	posts := make([]model.PublicPost, 0)
 	for rows.Next() {
-		post, err := scanPublicPost(rows)
+		post, err := scanPublicPostList(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -109,8 +128,8 @@ func (r *PostRepository) ListPublished(ctx context.Context, params ListPublished
 }
 
 func (r *PostRepository) GetPublishedBySlug(ctx context.Context, slug string) (*model.PublicPost, error) {
-	return scanPublicPost(r.DB.QueryRow(ctx, publicPostSelect+`
-		WHERE p.status = 'published' AND p.slug = $1
+	return scanPublicPostDetail(r.DB.QueryRow(ctx, publicPostDetailSelect+`
+		WHERE p.status = 'published' AND LOWER(p.slug) = LOWER($1)
 	`, slug))
 }
 
@@ -206,9 +225,22 @@ const postSelect = `
 	       content, tags, status, published_at, created_at, updated_at
 	FROM posts`
 
-const publicPostSelect = `
+const postSummarySelect = `
+	SELECT id, author_id, category_id, slug, title, COALESCE(summary, ''),
+	       tags, status, published_at, created_at, updated_at
+	FROM posts`
+
+const publicPostListSelect = `
 	SELECT p.id, p.author_id, p.category_id, p.slug, p.title, COALESCE(p.summary, ''),
-	       p.content, p.tags, p.status, p.published_at, p.created_at, p.updated_at,
+	       p.tags, p.published_at,
+	       u.nickname, COALESCE(u.avatar_url, ''), c.name, c.slug
+	FROM posts p
+	JOIN users u ON u.id = p.author_id
+	JOIN categories c ON c.id = p.category_id`
+
+const publicPostDetailSelect = `
+	SELECT p.id, p.author_id, p.category_id, p.slug, p.title, COALESCE(p.summary, ''),
+	       p.content, p.tags, p.published_at,
 	       u.nickname, COALESCE(u.avatar_url, ''), c.name, c.slug
 	FROM posts p
 	JOIN users u ON u.id = p.author_id
@@ -226,13 +258,36 @@ func scanPost(row rowScanner) (*model.Post, error) {
 	return &post, nil
 }
 
-func scanPublicPost(row rowScanner) (*model.PublicPost, error) {
+func scanPostSummary(row rowScanner) (*model.PostSummary, error) {
+	var post model.PostSummary
+	if err := row.Scan(
+		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
+		&post.Summary, &post.Tags, &post.Status, &post.PublishedAt,
+		&post.CreatedAt, &post.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
+func scanPublicPostList(row rowScanner) (*model.PublicPost, error) {
 	var post model.PublicPost
 	if err := row.Scan(
 		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
-		&post.Summary, &post.Content, &post.Tags, &post.Status, &post.PublishedAt,
-		&post.CreatedAt, &post.UpdatedAt, &post.AuthorNickname, &post.AuthorAvatarURL,
+		&post.Summary, &post.Tags, &post.PublishedAt, &post.AuthorNickname, &post.AuthorAvatarURL,
 		&post.CategoryName, &post.CategorySlug,
+	); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
+func scanPublicPostDetail(row rowScanner) (*model.PublicPost, error) {
+	var post model.PublicPost
+	if err := row.Scan(
+		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
+		&post.Summary, &post.Content, &post.Tags, &post.PublishedAt,
+		&post.AuthorNickname, &post.AuthorAvatarURL, &post.CategoryName, &post.CategorySlug,
 	); err != nil {
 		return nil, err
 	}

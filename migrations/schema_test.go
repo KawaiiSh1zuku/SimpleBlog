@@ -7,6 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -42,14 +44,20 @@ func TestInitialSchema(t *testing.T) {
 		t.Fatalf("set search path: %v", err)
 	}
 
-	contents, err := os.ReadFile("000001_init.sql")
+	files, err := filepath.Glob("*.sql")
 	if err != nil {
-		t.Fatalf("read initial schema: %v", err)
+		t.Fatalf("list migrations: %v", err)
 	}
-	statements := schemaStatements(string(contents))
-	for index, statement := range statements {
-		if _, err := tx.Exec(ctx, statement); err != nil {
-			t.Fatalf("execute schema statement %d: %v\n%s", index+1, err, statement)
+	sort.Strings(files)
+	for _, file := range files {
+		contents, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", file, err)
+		}
+		for index, statement := range schemaStatements(string(contents)) {
+			if _, err := tx.Exec(ctx, statement); err != nil {
+				t.Fatalf("execute %s statement %d: %v\n%s", file, index+1, err, statement)
+			}
 		}
 	}
 
@@ -64,6 +72,23 @@ func TestInitialSchema(t *testing.T) {
 	}
 
 	assertPostDeleteCascadesCommentTree(t, ctx, tx)
+	assertOptimizedIndexes(t, ctx, tx)
+}
+
+func assertOptimizedIndexes(t *testing.T, ctx context.Context, tx pgx.Tx) {
+	t.Helper()
+	for _, index := range []string{
+		"posts_updated_idx", "posts_author_updated_idx", "posts_published_tags_gin",
+		"posts_category_public_idx", "comments_post_created_idx", "comments_created_idx",
+	} {
+		var relation *string
+		if err := tx.QueryRow(ctx, "SELECT TO_REGCLASS($1)", index).Scan(&relation); err != nil {
+			t.Fatalf("look up index %s: %v", index, err)
+		}
+		if relation == nil {
+			t.Errorf("index %s was not created", index)
+		}
+	}
 }
 
 func assertPostDeleteCascadesCommentTree(t *testing.T, ctx context.Context, tx pgx.Tx) {

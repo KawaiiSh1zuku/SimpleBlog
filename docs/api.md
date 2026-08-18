@@ -31,8 +31,11 @@
 | 403 | 已登录但没有权限 |
 | 404 | 资源不存在 |
 | 409 | 唯一键、状态或关联关系冲突 |
+| 413 | 请求体超过 2 MiB 上限 |
 | 422 | 请求格式正确但业务校验失败 |
+| 429 | 登录请求超过单 IP 频率限制 |
 | 500 | 未预期的服务端错误 |
+| 503 | 数据库暂时不可用、死锁或事务需要重试 |
 
 前端必须始终读取 `code`，不能只根据 HTTP 状态判断。以下路径也必须使用相同 JSON 格式和 HTTP 200：
 
@@ -63,6 +66,7 @@ GET  /auth/me
 ```
 
 - login 接收 username 和 password，成功后签发 24 小时有效的 JWT。
+- login 按客户端 IP 限制为每分钟 10 次；超限仍返回 HTTP 200，响应体 code 为 429。
 - me 返回当前用户的 id、username、nickname、avatar_url 和 role。
 - JWT 使用 `Authorization: Bearer <token>`。
 
@@ -132,6 +136,7 @@ POST /posts/{slug}/comments
 - Turnstile token 推荐放入统一请求头，不写入评论 DTO。
 - 只能评论已发布文章。
 - 公开响应绝不包含 email。
+- 服务端可读取 email，仅用于对 `trim + lowercase` 后的值计算 Gravatar MD5；响应返回 `avatar_url`，镜像基址由 `GRAVATAR_BASE_URL` 配置。
 - Turnstile 请求头固定为 `X-Turnstile-Token`；缺失或验证失败分别返回业务 code 401/403。
 - nickname 最大 80 个 Unicode 字符，email 必须是单一有效邮箱地址，parent_id 必须属于同一篇文章。
 - 允许回复 hidden/deleted 节点；回复仍保留真实 parent_id。
@@ -143,6 +148,7 @@ POST /posts/{slug}/comments
   "id": "uuid",
   "parent_id": null,
   "nickname": "visitor",
+  "avatar_url": "https://www.gravatar.com/avatar/hash?d=identicon",
   "content": "comment content",
   "status": "visible",
   "created_at": "2026-08-18T12:00:00Z",
@@ -150,7 +156,7 @@ POST /posts/{slug}/comments
 }
 ```
 
-hidden/deleted 节点返回占位内容，但保留 replies。deleted 节点固定显示“该评论已被删除”。后端不限制回复深度；前端采用类似 B 站的不随层级增加缩进的展示，但不能改变真实 parent_id 关系。
+hidden/deleted 节点返回占位内容、空 `avatar_url`，但保留 replies。deleted 节点固定显示“该评论已被删除”。后端不限制回复深度；前端采用类似 B 站的不随层级增加缩进的展示，但不能改变真实 parent_id 关系。
 
 hidden 节点公开显示“评论已隐藏”且不返回原正文；deleted 节点不可恢复。评论树由后端按 parent_id 组装，任意层级回复都保留在 `replies` 中。
 
@@ -204,6 +210,8 @@ POST   /admin/posts/{id}/withdraw
 - slug 由客户端提供，服务端转为小写，只允许字母、数字和单连字符，最大 160 字符。
 - tags 会被 trim、转小写、去空、去重并保序，最多 10 个，每项最多 30 个 Unicode 字符。
 - content 原样保存 Markdown 与 LaTeX 文本，不在服务端渲染。
+- `GET /admin/posts` 支持 `limit`（默认 50，最大 100）和不透明 `cursor`，响应为 `{ "items": [...], "next_cursor": "..." }`。
+- 后台文章列表不返回 content；编辑器通过 `GET /admin/posts/{id}` 获取完整正文。
 
 ## 8. 分类后台
 
@@ -236,7 +244,8 @@ DELETE /admin/comments/{id}
 - admin 管理全部评论。
 - hide 可恢复。
 - DELETE 写入 deleted 墓碑并清除个人信息，不物理删除回复树；公开端显示“该评论已被删除”。
-- 后台列表包含 email 供站点管理，但公开 DTO 和公开查询均不读取或返回 email。
+- 后台列表包含 email 供站点管理；公开查询可读取 email 计算 Gravatar，但公开 DTO 和响应绝不返回 email。
+- `GET /admin/comments` 支持 `limit`（默认 50，最大 100）和不透明 `cursor`，响应为 `{ "items": [...], "next_cursor": "..." }`。
 - visible 只能 hide，hidden 可以 show，deleted 不能恢复或重复删除；非法状态转换返回业务 code 409。
 
 ## 10. S3 图片直传

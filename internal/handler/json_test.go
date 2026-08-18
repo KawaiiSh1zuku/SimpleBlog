@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ func TestWriteServiceErrorUsesHTTP200AndBusinessCode(t *testing.T) {
 		{name: "forbidden", err: service.ErrForbidden, code: http.StatusForbidden},
 		{name: "not found", err: service.ErrNotFound, code: http.StatusNotFound},
 		{name: "conflict", err: service.ErrConflict, code: http.StatusConflict},
+		{name: "unavailable", err: service.ErrUnavailable, code: http.StatusServiceUnavailable},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -37,5 +39,22 @@ func TestWriteServiceErrorUsesHTTP200AndBusinessCode(t *testing.T) {
 				t.Fatalf("business code = %d, want %d", body.Code, test.code)
 			}
 		})
+	}
+}
+
+func TestDecodeJSONMapsMaxBytesErrorTo413(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"value":"too large"}`)))
+	recorder := httptest.NewRecorder()
+	request.Body = http.MaxBytesReader(recorder, request.Body, 4)
+	var target map[string]any
+	if decodeJSON(recorder, request, &target) {
+		t.Fatal("decodeJSON() accepted an oversized body")
+	}
+	var body response.Response[any]
+	if err := json.NewDecoder(recorder.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("business code = %d, want %d", body.Code, http.StatusRequestEntityTooLarge)
 	}
 }

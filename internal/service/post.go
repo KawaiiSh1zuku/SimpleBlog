@@ -13,12 +13,16 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const maxTags = 10
+const (
+	maxTags             = 10
+	MaxPostContentBytes = 1024 * 1024
+	maxPostSummaryRunes = 1000
+)
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type PostStore interface {
-	List(context.Context, *uuid.UUID) ([]model.Post, error)
+	List(context.Context, repository.ListPostsParams) ([]model.PostSummary, error)
 	GetByID(context.Context, uuid.UUID) (*model.Post, error)
 	Create(context.Context, *model.Post) (*model.Post, error)
 	Update(context.Context, uuid.UUID, repository.UpdatePostParams) (*model.Post, error)
@@ -29,6 +33,16 @@ type PostStore interface {
 
 type PostService struct {
 	Posts PostStore
+}
+
+type ListManagedPostsInput struct {
+	Limit  string
+	Cursor string
+}
+
+type ManagedPostPage struct {
+	Items      []model.PostSummary
+	NextCursor string
 }
 
 type CreatePostInput struct {
@@ -51,15 +65,30 @@ type UpdatePostInput struct {
 
 func NewPostService(posts PostStore) *PostService { return &PostService{Posts: posts} }
 
-func (s *PostService) List(ctx context.Context, actor *model.User) ([]model.Post, error) {
+func (s *PostService) List(ctx context.Context, actor *model.User, input ListManagedPostsInput) (*ManagedPostPage, error) {
 	if !canManagePosts(actor) {
 		return nil, ErrForbidden
+	}
+	limit, cursor, err := parseManagedPage(input.Limit, input.Cursor, "posts")
+	if err != nil {
+		return nil, err
 	}
 	var authorID *uuid.UUID
 	if actor.Role == model.RoleContributor {
 		authorID = &actor.ID
 	}
-	return s.Posts.List(ctx, authorID)
+	posts, err := s.Posts.List(ctx, repository.ListPostsParams{AuthorID: authorID, Limit: limit + 1, Cursor: cursor})
+	if err != nil {
+		return nil, mapStoreAvailability(err)
+	}
+	page := &ManagedPostPage{Items: posts}
+	if len(posts) <= limit {
+		return page, nil
+	}
+	page.Items = posts[:limit]
+	last := page.Items[len(page.Items)-1]
+	page.NextCursor, err = encodeManagedCursor("posts", repository.TimeCursor{At: last.UpdatedAt, ID: last.ID})
+	return page, err
 }
 
 func (s *PostService) Get(ctx context.Context, actor *model.User, id uuid.UUID) (*model.Post, error) {
@@ -153,7 +182,8 @@ func (s *PostService) authorizePost(ctx context.Context, actor *model.User, id u
 func validatePost(slug, title, summary, content string, tags []string) (string, string, string, []string, error) {
 	slug, ok := normalizeSlug(slug, 160)
 	title = strings.TrimSpace(title)
-	if !ok || !validText(title, 1, 200) || strings.TrimSpace(content) == "" {
+	if !ok || !validText(title, 1, 200) || !validText(summary, 0, maxPostSummaryRunes) ||
+		strings.TrimSpace(content) == "" || len(content) > MaxPostContentBytes {
 		return "", "", "", nil, ErrInvalidInput
 	}
 	normalizedTags, err := normalizeTags(tags)
@@ -187,10 +217,13 @@ func validatePostUpdate(input UpdatePostInput) (repository.UpdatePostParams, err
 	}
 	if input.Summary != nil {
 		value := strings.TrimSpace(*input.Summary)
+		if !validText(value, 0, maxPostSummaryRunes) {
+			return params, ErrInvalidInput
+		}
 		params.Summary = &value
 	}
 	if input.Content != nil {
-		if strings.TrimSpace(*input.Content) == "" {
+		if strings.TrimSpace(*input.Content) == "" || len(*input.Content) > MaxPostContentBytes {
 			return params, ErrInvalidInput
 		}
 		params.Content = input.Content
@@ -247,6 +280,10 @@ func mapPostStoreError(err error) error {
 		return ErrConflict
 	case repository.IsForeignKeyViolation(err):
 		return ErrNotFound
+	case repository.IsInputViolation(err):
+		return ErrInvalidInput
+	case repository.IsRetryable(err):
+		return ErrUnavailable
 	default:
 		return err
 	}

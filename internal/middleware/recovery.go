@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"log/slog"
 	"net/http"
@@ -15,7 +16,7 @@ func Recoverer(next http.Handler) http.Handler {
 				slog.ErrorContext(
 					r.Context(),
 					"panic recovered",
-					"panic", recovered,
+					"panic_type", fmt.Sprintf("%T", recovered),
 					"stack", string(debug.Stack()),
 				)
 				response.Error(w, http.StatusInternalServerError, "internal server error")

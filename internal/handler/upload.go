@@ -19,8 +19,7 @@ func NewUploadHandler(uploads *service.UploadService) *UploadHandler {
 
 func (h *UploadHandler) Presign(w http.ResponseWriter, r *http.Request) {
 	var request dto.CreateUploadRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())

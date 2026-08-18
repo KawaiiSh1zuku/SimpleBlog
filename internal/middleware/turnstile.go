@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
-	"net"
 	"net/http"
 )
 
@@ -23,15 +22,10 @@ func TurnstileMiddleware(
 				return
 			}
 
-			remoteIP := r.RemoteAddr
-			if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-				remoteIP = host
-			}
-
 			if err := ts.Verify(
 				r.Context(),
 				token,
-				remoteIP,
+				requestClientIP(r),
 			); err != nil {
 				response.Error(w, 403, "Turnstile 验证不通过")
 				return

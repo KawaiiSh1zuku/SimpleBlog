@@ -36,9 +36,9 @@ type routePostStore struct {
 	created  *model.Post
 }
 
-func (store *routePostStore) List(_ context.Context, authorID *uuid.UUID) ([]model.Post, error) {
-	store.authorID = authorID
-	return []model.Post{}, nil
+func (store *routePostStore) List(_ context.Context, params repository.ListPostsParams) ([]model.PostSummary, error) {
+	store.authorID = params.AuthorID
+	return []model.PostSummary{}, nil
 }
 func (*routePostStore) GetByID(context.Context, uuid.UUID) (*model.Post, error) { return nil, nil }
 

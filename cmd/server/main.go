@@ -27,7 +27,7 @@ func main() {
 	defer stop()
 
 	if err := run(ctx); err != nil {
-		slog.Error("server stopped", "error", err)
+		utils.LogError(context.Background(), "server stopped", err)
 		os.Exit(1)
 	}
 }
@@ -41,7 +41,12 @@ func run(ctx context.Context) error {
 	}
 	logLevel.Set(slog.Level(utils.MapLogLevel(cfg.App.Loglevel)))
 
-	pool, err := pgxpool.New(ctx, cfg.Database.ConnectionString())
+	poolConfig, err := pgxpool.ParseConfig(cfg.Database.ConnectionString())
+	if err != nil {
+		return fmt.Errorf("parse database config: %w", err)
+	}
+	poolConfig.ConnConfig.Tracer = repository.NewSlowQueryTracer(time.Duration(cfg.Database.SlowQueryMS) * time.Millisecond)
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return fmt.Errorf("create database pool: %w", err)
 	}
@@ -75,7 +80,7 @@ func run(ctx context.Context) error {
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	postHandler := handler.NewPostHandler(postService)
 	publicHandler := handler.NewPublicHandler(publicService)
-	commentHandler := handler.NewCommentHandler(commentService)
+	commentHandler := handler.NewCommentHandler(commentService, cfg.Gravatar.BaseURL)
 	uploadHandler := handler.NewUploadHandler(uploadService)
 
 	turnstileService := service.NewTurnstileService(cfg.Turnstile.Secret)
@@ -85,7 +90,7 @@ func run(ctx context.Context) error {
 	authRoutes := router.AuthRouter(authHandler, tokenAuth, userRepository)
 	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, commentHandler, uploadHandler, tokenAuth, userRepository)
 	publicRoutes := router.PublicRouter(publicHandler, commentHandler, turnstileService)
-	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, publicRoutes, cfg.App.Debug)
+	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, publicRoutes, cfg.Server.TrustProxyHeaders)
 
 	server := newHTTPServer(cfg.Server.Address(), rootRouter)
 	slog.Info("starting server", "address", server.Addr)

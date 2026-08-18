@@ -31,6 +31,7 @@
 | 13. M3 公开内容 API | 已完成 | 已发布文章列表/详情、分类、标签、筛选、稳定游标分页 |
 | 14. M4 多级评论 | 已完成 | 匿名评论、任意层级回复、Turnstile、审核与删除墓碑 |
 | 15. M5 S3 图片直传 | 已完成 | POST policy、服务端 object key、限制策略、公开 URL 与真实 MinIO 验证 |
+| 16. M6 质量、安全与 PostgreSQL 优化 | 已完成 | Gravatar、请求限制、日志、错误分类、SQL 执行计划与性能证据 |
 
 ## 约束
 
@@ -46,6 +47,7 @@
 - S3 首版允许 JPEG、PNG、WebP、GIF，单文件最大 10 MiB。
 - 每完成一个 milestone 创建一次签名 commit，并等待用户验收后进入下一 milestone。
 - M6 新增 PostgreSQL 深度优化要求：执行计划、索引、N+1、慢查询、事务锁、参数化 SQL、最小字段读取及可复现性能证据。
+- 公开评论允许在服务端查询 email 以生成 Gravatar URL，但任何公开 DTO 均不得返回 email；镜像源可配置。
 
 ## 错误记录
 
@@ -66,3 +68,11 @@
 | 本机没有 Docker 命令 | 1 | 通过代理下载官方 MinIO Windows 服务端到隔离临时目录验证 |
 | 临时 MinIO 默认 9000 端口已被占用 | 1 | 改用 19000/19001 并显式配置集成测试 endpoint |
 | 后台启动与递归清理组合命令被执行策略拒绝 | 1 | 拆分启动、测试、进程校验和清理；最终以已验证临时路径完成删除 |
+| M6 DTO 测试中手写的 leaf@example.com MD5 期望值错误 | 1 | 以标准库计算结果修正测试常量，另保留 Gravatar 官方示例邮箱验证规范化 |
+| M6 管理列表接口改为分页后旧测试桩签名不匹配 | 1 | 按编译器列出的 Post/Comment store 和集成测试调用点统一迁移到分页参数 |
+| M6 代理信任测试遗漏 strings import | 1 | 补充标准库导入并重新执行全量测试 |
+| M6 错把 Chi ClientIP middleware 当作修改 RemoteAddr | 1 | 查询 v5.3.1 实际接口后统一改用 GetClientIP(ctx)，仅无根中间件的单测回退 RemoteAddr |
+| M6 一致性扫描命中 findings 中的旧方案说明并返回 1 | 1 | 将历史说明改写为“初版省略字段”，再单独重跑现行文档冲突扫描 |
+| M6 审阅命令尝试读取不存在的 internal/handler/errors.go | 1 | 确认错误映射实际位于 internal/handler/json.go，停止使用假定路径 |
+| contributor 评论物化文章集合后 planner 仍对 comments 选择顺序扫描 | 1 | 继续改为带单文章排序的 LATERAL 查询，强制利用 post_id 时间序索引并重跑 EXPLAIN |
+| Windows 下 rg 直接使用 internal/service/*.go 路径通配符失败 | 1 | 改为搜索目录并用 `-g '*.go'` 过滤 |

@@ -1,6 +1,10 @@
 package service
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/repository"
+)
 
 var (
 	ErrInvalidInput       = errors.New("invalid input")
@@ -9,4 +13,12 @@ var (
 	ErrConflict           = errors.New("conflict")
 	ErrForbidden          = errors.New("forbidden")
 	ErrLastAdmin          = errors.New("cannot remove the last admin")
+	ErrUnavailable        = errors.New("temporarily unavailable")
 )
+
+func mapStoreAvailability(err error) error {
+	if repository.IsRetryable(err) {
+		return ErrUnavailable
+	}
+	return err
+}

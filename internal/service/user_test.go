@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
@@ -16,6 +17,17 @@ type userStoreStub struct {
 	softDeleteErr  error
 	softDeleteCall bool
 	passwordHash   string
+}
+
+func TestUserServiceRejectsOversizedAvatarURL(t *testing.T) {
+	service := NewUserService(&userStoreStub{})
+	_, err := service.Create(context.Background(), &model.User{Role: model.RoleAdmin}, CreateUserInput{
+		Username: "writer", Password: "strong-password", Nickname: "Writer",
+		AvatarURL: strings.Repeat("x", maxAvatarURLRunes+1), Role: model.RoleContributor,
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("oversized avatar URL error = %v", err)
+	}
 }
 
 func (stub *userStoreStub) GetByID(context.Context, uuid.UUID) (*model.User, error) { return nil, nil }

@@ -194,7 +194,7 @@ CommentService 还必须保证：
 - parent_id 创建后不可更改。
 - 不设置最大回复深度；前端展示策略不改变数据库中的真实 parent_id。
 - 回复已删除或已隐藏评论是否允许，由当前设计统一设为允许；回复仍挂在原节点下。
-- 返回公开评论树时，email 永远不进入 DTO。
+- 返回公开评论树时，repository 可读取 email 供 DTO 计算 Gravatar URL，但 email 永远不进入公开 DTO 或日志。
 
 隐藏：
 
@@ -234,3 +234,18 @@ WHERE id = $1;
 - post_tags：不需要多对多关系。
 - uploads/media：第一版仅签发 S3 预签名地址，不做媒体管理。
 - sessions/refresh_tokens：第一版使用 24 小时 JWT，不维护服务端会话或 refresh token。
+
+## 6. 当前索引与查询策略
+
+`000001_init.sql` 是可追溯的初始基线；`000002_optimize_indexes.sql` 替换了不匹配实际排序和筛选方式的索引。当前新增或调整的关键索引为：
+
+- `posts_updated_idx (updated_at DESC, id DESC)`：admin 全站文章 keyset 列表。
+- `posts_author_updated_idx (author_id, updated_at DESC, id DESC)`：contributor 自己的文章列表。
+- `posts_published_tags_gin`：只覆盖已发布文章的标签筛选，避免草稿标签膨胀公开查询索引。
+- `posts_category_public_idx (category_id, published_at DESC, id DESC)`：按分类读取公开文章并直接满足稳定排序。
+- `comments_post_created_idx (post_id, created_at, id)`：单篇文章评论树的一次性读取。
+- `comments_created_idx (created_at DESC, id DESC)`：后台评论 keyset 列表。
+
+公开文章列表和后台文章列表不读取 `content`；只有详情接口读取 Markdown + LaTeX 正文。除登录查询外，用户查询不读取 `password_hash`。全部外部输入通过 pgx 参数传入，动态查询只拼接服务端固定 SQL 片段和占位符。
+
+代表性数据量、`EXPLAIN (ANALYZE, BUFFERS)` 结果与复现方法见 [PostgreSQL 优化记录](postgresql-optimization.md)。

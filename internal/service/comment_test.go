@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -18,7 +20,19 @@ type commentStoreStub struct {
 	publicExists bool
 	managed      *model.ManagedComment
 	listAuthor   *uuid.UUID
+	listLimit    int
 	hideCalled   bool
+}
+
+func TestCommentServiceRejectsOversizedContent(t *testing.T) {
+	service := NewCommentService(&commentStoreStub{})
+	_, err := service.Create(context.Background(), "post", CreateCommentInput{
+		Nickname: "Visitor", Email: "visitor@example.com",
+		Content: strings.Repeat("评", MaxCommentContentRunes+1),
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("oversized comment error = %v", err)
+	}
 }
 
 func (stub *commentStoreStub) CreateForPublishedPost(_ context.Context, slug string, comment *model.Comment) (*model.Comment, error) {
@@ -29,8 +43,9 @@ func (stub *commentStoreStub) CreateForPublishedPost(_ context.Context, slug str
 func (stub *commentStoreStub) ListPublicByPostSlug(context.Context, string) ([]model.Comment, bool, error) {
 	return []model.Comment{}, stub.publicExists, nil
 }
-func (stub *commentStoreStub) ListManaged(_ context.Context, authorID *uuid.UUID) ([]model.ManagedComment, error) {
-	stub.listAuthor = authorID
+func (stub *commentStoreStub) ListManaged(_ context.Context, params repository.ListCommentsParams) ([]model.ManagedComment, error) {
+	stub.listAuthor = params.AuthorID
+	stub.listLimit = params.Limit
 	return nil, nil
 }
 func (stub *commentStoreStub) GetManagedByID(context.Context, uuid.UUID) (*model.ManagedComment, error) {
@@ -108,11 +123,14 @@ func TestCommentServiceEnforcesModerationOwnershipAndState(t *testing.T) {
 	if _, err := service.Show(context.Background(), &model.User{Role: model.RoleAdmin}, uuid.New()); !errors.Is(err, ErrConflict) {
 		t.Fatalf("Show(deleted) error = %v", err)
 	}
-	if _, err := service.ListManaged(context.Background(), owner); err != nil {
+	if _, err := service.ListManaged(context.Background(), owner, ListManagedCommentsInput{}); err != nil {
 		t.Fatalf("ListManaged() error = %v", err)
 	}
 	if store.listAuthor == nil || *store.listAuthor != ownerID {
 		t.Fatalf("contributor list author = %v", store.listAuthor)
+	}
+	if store.listLimit != defaultManagedPageSize+1 {
+		t.Fatalf("managed comment repository limit = %d", store.listLimit)
 	}
 }
 

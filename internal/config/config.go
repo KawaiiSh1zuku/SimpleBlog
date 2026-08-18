@@ -18,6 +18,7 @@ type Config struct {
 	JWT       JWTConfig
 	Turnstile TurnstileConfig
 	S3        S3Config
+	Gravatar  GravatarConfig
 }
 
 type AppConfig struct {
@@ -26,17 +27,19 @@ type AppConfig struct {
 }
 
 type ServerConfig struct {
-	Host string `env:"SERVER_HOST" envDefault:"localhost"`
-	Port string `env:"SERVER_PORT" envDefault:"8080"`
+	Host              string `env:"SERVER_HOST" envDefault:"localhost"`
+	Port              string `env:"SERVER_PORT" envDefault:"8080"`
+	TrustProxyHeaders bool   `env:"TRUST_PROXY_HEADERS" envDefault:"false"`
 }
 
 type DatabaseConfig struct {
-	Host     string `env:"DB_HOST" envDefault:"localhost"`
-	Port     string `env:"DB_PORT" envDefault:"5432"`
-	Username string `env:"DB_USER" envDefault:"postgres"`
-	Password string `env:"DB_PASSWORD" envDefault:"password"`
-	DBName   string `env:"DB_NAME" envDefault:"mydb"`
-	SSLMode  string `env:"DB_SSLMODE" envDefault:"disable"`
+	Host        string `env:"DB_HOST" envDefault:"localhost"`
+	Port        string `env:"DB_PORT" envDefault:"5432"`
+	Username    string `env:"DB_USER" envDefault:"postgres"`
+	Password    string `env:"DB_PASSWORD" envDefault:"password"`
+	DBName      string `env:"DB_NAME" envDefault:"mydb"`
+	SSLMode     string `env:"DB_SSLMODE" envDefault:"disable"`
+	SlowQueryMS int    `env:"DB_SLOW_QUERY_MS" envDefault:"250"`
 }
 
 type JWTConfig struct {
@@ -56,6 +59,10 @@ type S3Config struct {
 	SecretKey     string `env:"S3_SECRET_KEY" envDefault:"minioadmin"`
 	UseSSL        bool   `env:"S3_USE_SSL" envDefault:"false"`
 	PublicBaseURL string `env:"S3_PUBLIC_BASE_URL" envDefault:"http://localhost:9000/simpleblog"`
+}
+
+type GravatarConfig struct {
+	BaseURL string `env:"GRAVATAR_BASE_URL" envDefault:"https://www.gravatar.com/avatar"`
 }
 
 // LoadConfig 加载 .env 文件（若存在）并从环境变量解析配置
@@ -103,6 +110,9 @@ func (c *Config) Validate() error {
 	if !isSSLMode(c.Database.SSLMode) {
 		errs = append(errs, fmt.Errorf("invalid DB_SSLMODE %q", c.Database.SSLMode))
 	}
+	if c.Database.SlowQueryMS < 1 || c.Database.SlowQueryMS > 60000 {
+		errs = append(errs, errors.New("DB_SLOW_QUERY_MS must be between 1 and 60000"))
+	}
 	if strings.TrimSpace(c.S3.Endpoint) == "" {
 		errs = append(errs, errors.New("S3_ENDPOINT must not be empty"))
 	}
@@ -119,6 +129,9 @@ func (c *Config) Validate() error {
 		errs = append(errs, errors.New("S3_SECRET_KEY must not be empty"))
 	}
 	if err := validateHTTPURL("S3_PUBLIC_BASE_URL", c.S3.PublicBaseURL); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateHTTPURL("GRAVATAR_BASE_URL", c.Gravatar.BaseURL); err != nil {
 		errs = append(errs, err)
 	}
 

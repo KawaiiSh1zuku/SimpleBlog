@@ -2,6 +2,7 @@ package response
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -16,6 +17,9 @@ type Response[T any] struct {
 
 // JSON 输出统一响应。应用层业务结果始终使用 HTTP 200，真实状态由 code 表示。
 func JSON[T any](w http.ResponseWriter, code int, msg string, data T) {
+	if writer, ok := w.(interface{ SetBusinessCode(int) }); ok {
+		writer.SetBusinessCode(code)
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
@@ -28,7 +32,7 @@ func JSON[T any](w http.ResponseWriter, code int, msg string, data T) {
 	// 忽略编码错误
 	err := json.NewEncoder(w).Encode(resp)
 	if err != nil {
-		slog.Error("Failed to encode json resp", "error", err)
+		slog.Error("failed to encode JSON response", "error_type", fmt.Sprintf("%T", err))
 	}
 }
 

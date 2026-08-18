@@ -87,7 +87,7 @@ func (s *PublicService) ListPosts(ctx context.Context, input ListPublicPostsInpu
 		Limit: limit + 1, CategorySlug: categorySlug, Tag: tag, Cursor: cursor,
 	})
 	if err != nil {
-		return nil, err
+		return nil, mapStoreAvailability(err)
 	}
 	page := &PublicPostPage{Items: posts}
 	if len(posts) <= limit {
@@ -117,15 +117,17 @@ func (s *PublicService) GetPost(ctx context.Context, slug string) (*model.Public
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return post, err
+	return post, mapStoreAvailability(err)
 }
 
 func (s *PublicService) ListCategories(ctx context.Context) ([]model.Category, error) {
-	return s.Categories.List(ctx)
+	categories, err := s.Categories.List(ctx)
+	return categories, mapStoreAvailability(err)
 }
 
 func (s *PublicService) ListTags(ctx context.Context) ([]string, error) {
-	return s.Posts.ListPublishedTags(ctx)
+	tags, err := s.Posts.ListPublishedTags(ctx)
+	return tags, mapStoreAvailability(err)
 }
 
 func parsePublicLimit(value string) (int, error) {

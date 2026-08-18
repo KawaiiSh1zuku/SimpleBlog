@@ -43,8 +43,7 @@ func (h *UserHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var request dto.CreateUserRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())
@@ -65,8 +64,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request dto.UpdateUserRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())
@@ -100,8 +98,7 @@ func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request dto.UpdatePasswordRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())

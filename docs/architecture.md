@@ -165,7 +165,7 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 - deleted：清空昵称、邮箱和正文，保留关系节点；公开端固定显示“该评论已被删除”，子回复继续展示且不允许恢复。
 - 删除文章：数据库级联物理删除整棵评论树。
 
-公开创建评论使用单条 `INSERT ... SELECT` 约束目标文章必须已发布，父评论与文章一致性由 `(parent_id, post_id)` 复合外键原子保证。公开查询不选择 email 列；后台管理查询按当前角色限制到全部文章或 contributor 自己的文章。
+公开创建评论使用单条 `INSERT ... SELECT` 约束目标文章必须已发布，父评论与文章一致性由 `(parent_id, post_id)` 复合外键原子保证。公开查询读取 email 仅用于在 DTO 边界计算 Gravatar URL，公开 DTO 不包含 email 字段；后台管理查询按当前角色限制到全部文章或 contributor 自己的文章。
 
 评论树先为所有节点建立索引，再按 parent_id 迭代挂接，业务层不设置深度上限；这避免为每一层执行 SQL，也不会产生 N+1 查询。
 
@@ -191,6 +191,9 @@ S3 运行配置为 `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`�
 - 输入：限制 body 大小、文章正文大小、标签数量、评论长度和图片大小。
 - 日志：记录 request ID、当前用户 ID、业务 code、耗时和内部错误；不得记录密码、JWT、评论邮箱或 S3 签名。
 - 响应：所有应用层业务结果返回 HTTP 200，真实结果由 JSON `code` 表示，详见 API 文档。
+- 滥用防护：登录按单实例客户端 IP 固定窗口限流；可信代理头必须由 `TRUST_PROXY_HEADERS` 显式开启。
+- 数据访问：公开与后台列表使用 keyset pagination；查询按用途最小化投影，慢查询只记录 SQL 指纹而不记录文本和参数。
+- PostgreSQL：索引、执行计划、锁竞争与代表性数据验证见 [PostgreSQL 优化记录](postgresql-optimization.md)。
 
 ## 6. 实施路线
 

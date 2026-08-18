@@ -184,7 +184,7 @@
 ## M4 实现决策
 
 - 匿名评论创建使用已发布文章 `INSERT ... SELECT`，与 comments 的 `(parent_id, post_id)` 复合外键共同保证发布状态和同文章父子关系，避免“先查再插”的竞态。
-- 公开评论查询只选择展示所需字段，刻意不读取 email；后台管理查询才读取 email，并按文章作者过滤 contributor。
+- M4 初版省略了公开查询中的 email 字段；M6 按新需求改为读取 email 仅用于生成 Gravatar URL，公开 DTO 和日志仍不包含 email。后台管理查询继续按文章作者过滤 contributor。
 - 删除评论只写 deleted 墓碑，固定昵称“该评论已被删除”，同时清空 email/content；hidden 可恢复，deleted 不可恢复，hidden/deleted 都允许继续被回复。
 - 评论树通过两遍迭代映射组装，不按层级递归查询数据库，因此回复深度不产生 N+1；前端仍可采用不随深度缩进的 B 站式展示。
 - Turnstile 中间件改为小接口以便测试，并只传不含端口的远端 IP；HTTP client 增加 5 秒超时。
@@ -196,3 +196,34 @@
 - 签名有效期固定 10 分钟；admin/contributor 都可申请，UploadService 仍执行角色防御，不只依赖路由中间件。
 - Blog API 只返回 upload URL、必须原样提交的 form fields 和公开 URL，不代理文件字节，也不建立 uploads 表。
 - MinIO Go v7 仅封装 S3 兼容签名；真实验证使用临时本地 MinIO，完成 multipart POST 与匿名公开读取后销毁测试 bucket 和临时服务。
+
+## M6 新增需求
+
+- 用户允许公开评论查询在服务端读取 email，只要求前端响应不返回 email，因此不新增 email_hash 列或迁移。
+- Gravatar URL 由规范化邮箱（trim + 小写）的 MD5 生成；MD5 仅用于 Gravatar 标识，不用于密码或安全校验。
+- 镜像源通过 `GRAVATAR_BASE_URL` 配置，公开 DTO 只增加 avatar_url；hidden/deleted 占位节点不返回头像。
+
+## M6 初步审计
+
+- 公开文章列表复用详情 SELECT，虽然 DTO 不返回正文，SQL 仍读取大字段 content、后台状态和多余时间字段；应拆分 list/detail 投影。
+- UserRepository 的 GetByID/List/写入 RETURNING 都读取 password_hash，但只有登录 GetByUsername 需要它；应提供安全投影，减少密码哈希进入内存。
+- 评论公开查询当前不读 email；按用户最新确认可读取 email 并仅在 DTO 内生成 Gravatar URL，静态测试必须确认 JSON 无 email 字段。
+- 所有业务 SQL 的值均使用 PostgreSQL 参数；动态列表查询只拼接服务端生成的占位符和固定片段，未发现外部输入直接拼入 SQL。
+- `LOWER(slug)` 唯一索引与多个 `slug = $1` 查询表达式不一致，可能无法利用索引；评论索引把 parent_id 放在 created_at 之前，也不能直接满足按创建时间排序。
+- 管理端文章/评论列表当前无分页且读取完整集合；公开文章已有 1..100 的游标分页。M6 至少需要请求体上限、明确分页上限并对高增长查询给出优化证据。
+- 当前错误日志直接记录数据库 error，PostgreSQL Detail 可能包含输入值；M6 应只记录错误类型、SQLSTATE、约束和请求元数据。
+- 根路由已有 RequestID、IP 解析和 panic recovery，但没有结构化访问日志或请求体大小限制。
+
+## M6 实现决策
+
+- 请求体统一限制为 2 MiB，并由 MaxBytesReader 覆盖未知 Content-Length；业务字段再限制文章正文 1 MiB、摘要 1000 字符、评论 10000 字符、分类描述 2000 字符、头像 URL 2048 字符。
+- 访问日志通过 response writer 接收真实 body code，记录 path 而非 raw URL，因此不记录 query；错误日志对 PostgreSQL 只保留 SQLSTATE/constraint/type，不输出 Message/Detail。
+- PostgreSQL 错误集中分类 unique、foreign key、input violation 与 retryable；可重试的序列化失败、死锁、锁不可用和连接耗尽映射为业务 code 503。
+- 公开文章列表与详情拆分 SQL 投影，列表不再读取 Markdown content；UserRepository 仅登录查询读取 password_hash，当前用户、列表和写入返回均使用安全投影。
+- 管理文章和评论使用带资源 kind 的 Base64URL keyset cursor，默认 50、最大 100；文章列表使用无 content 的 PostSummary，编辑器按 ID 单独获取正文。
+- 登录采用单进程 IP 固定窗口限制（10 次/分钟、最多跟踪 10000 个 IP）；匿名评论继续使用 Turnstile。单站点单实例不引入 Redis。
+- `X-Real-IP` 不再由 DEBUG 隐式决定；仅 `TRUST_PROXY_HEADERS=true` 时信任，且部署代理必须覆盖客户端同名请求头。
+- 第二份迁移将后台文章、作者文章、已发布标签、文章评论时间序和全局评论时间序分别建立与查询一致的索引，并移除首份 schema 中前导列不匹配的索引。
+- 慢查询追踪以 `DB_SLOW_QUERY_MS` 配置阈值，日志只写规范化 SQL 的 SHA-256 短指纹、耗时、command tag 和 SQLSTATE；不写 SQL 文本、参数或 PostgreSQL Detail。
+- 初轮 PostgreSQL 18 数据验证覆盖 10k users、1k categories、20k posts、50k comments；八条基础查询均命中指定索引，测试未发现高增长表的可避免顺序扫描。
+- 补充 contributor 评论计划后发现全局时间索引会为 51 条结果扫描约 5,001 条评论并做同数量文章查找；采用物化作者文章集合 + LATERAL 后改为作者/文章评论索引，执行时间由样本 8.520 ms 降至 2.054 ms。

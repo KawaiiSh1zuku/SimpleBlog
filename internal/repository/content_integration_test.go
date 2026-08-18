@@ -97,11 +97,11 @@ func TestCategoryAndPostRepositoryLifecycle(t *testing.T) {
 		t.Fatalf("duplicate Create(post) error = %v", err)
 	}
 
-	authorPosts, err := posts.List(ctx, &author.ID)
+	authorPosts, err := posts.List(ctx, repository.ListPostsParams{AuthorID: &author.ID, Limit: 100})
 	if err != nil || len(authorPosts) != 1 {
 		t.Fatalf("List(author) = %d, %v", len(authorPosts), err)
 	}
-	allPosts, err := posts.List(ctx, nil)
+	allPosts, err := posts.List(ctx, repository.ListPostsParams{Limit: 100})
 	if err != nil || len(allPosts) != 1 {
 		t.Fatalf("List(all) = %d, %v", len(allPosts), err)
 	}

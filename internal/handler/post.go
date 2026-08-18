@@ -19,12 +19,15 @@ func NewPostHandler(posts *service.PostService) *PostHandler { return &PostHandl
 
 func (h *PostHandler) List(w http.ResponseWriter, r *http.Request) {
 	actor, _ := appmiddleware.CurrentUser(r.Context())
-	posts, err := h.Posts.List(r.Context(), actor)
+	query := r.URL.Query()
+	page, err := h.Posts.List(r.Context(), actor, service.ListManagedPostsInput{
+		Limit: query.Get("limit"), Cursor: query.Get("cursor"),
+	})
 	if err != nil {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.Success(w, dto.NewPostResponses(posts))
+	response.Success(w, dto.NewManagedPostPageResponse(page.Items, page.NextCursor))
 }
 
 func (h *PostHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -43,8 +46,7 @@ func (h *PostHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *PostHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var request dto.CreatePostRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())
@@ -65,8 +67,7 @@ func (h *PostHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request dto.UpdatePostRequest
-	if err := decodeJSON(r, &request); err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid request")
+	if !decodeJSON(w, r, &request) {
 		return
 	}
 	actor, _ := appmiddleware.CurrentUser(r.Context())
