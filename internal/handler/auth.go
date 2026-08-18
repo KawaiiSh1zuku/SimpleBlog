@@ -1,52 +1,39 @@
 package handler
 
 import (
-	"encoding/json"
+	"net/http"
+
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/dto"
+	appmiddleware "github.com/KawaiiSh1zuku/SimpleBlog/internal/middleware"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
-	"net/http"
 )
 
-// AdminHandler 结构体，持有依赖（如数据库连接池、服务层）
-type AdminHandler struct {
-	AuthService *service.AuthService
+type AuthHandler struct {
+	Auth *service.AuthService
 }
 
-// NewAdminHandler 构造函数，用于注入依赖
-func NewAdminHandler(authService *service.AuthService) *AdminHandler {
-	return &AdminHandler{
-		AuthService: authService,
-	}
-}
+func NewAuthHandler(auth *service.AuthService) *AuthHandler { return &AuthHandler{Auth: auth} }
 
-// ------------------- 方法即 Handler -------------------
-
-// Login POST /admin/login
-func (h *AdminHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req dto.LoginRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var request dto.LoginRequest
+	if err := decodeJSON(r, &request); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid request")
 		return
 	}
-
-	token, err := h.AuthService.Login(
-		r.Context(),
-		req.Username,
-		req.Password,
-	)
-
+	result, err := h.Auth.Login(r.Context(), request.Username, request.Password)
 	if err != nil {
-		response.Error(
-			w,
-			http.StatusUnauthorized,
-			"invalid username or password",
-		)
+		writeServiceError(w, r, err)
 		return
 	}
+	response.Success(w, dto.LoginResponse{Token: result.Token, ExpiresAt: result.ExpiresAt})
+}
 
-	response.Success(w, map[string]string{
-		"token": token,
-	})
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	user, ok := appmiddleware.CurrentUser(r.Context())
+	if !ok {
+		response.Error(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	response.Success(w, dto.NewUserResponse(user))
 }

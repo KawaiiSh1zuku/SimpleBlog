@@ -103,19 +103,29 @@ internal/router/
   service.go
 ```
 
-现有 `Admin` 模型、`AdminHandler` 和 `AuthRepository` 应逐步改为 `User`、`AuthHandler`/`UserHandler` 和 `UserRepository`。认证查询复用 `UserRepository.GetByUsername`，不额外创建重复的数据访问实现。
+M1 已将原有 `Admin` 模型、`AdminHandler` 和 `AuthRepository` 统一改为 `User`、`AuthHandler`/`UserHandler` 和 `UserRepository`。认证查询复用 `UserRepository.GetByUsername`，没有创建重复的数据访问实现。
 
 ## 4. 核心业务流程
 
 ### 4.1 登录与认证
 
-1. handler 解析用户名、密码和 Turnstile token。
+1. handler 解析用户名和密码。
 2. AuthService 通过 UserRepository 查询未删除用户。
 3. 使用 bcrypt 校验密码。
 4. 签发包含 `sub`、`role`、`iat`、`exp` 的短时效 JWT。
 5. 受保护请求解析 JWT 后再次加载当前用户，确保用户删除或角色变化立即生效。
 
 JWT 中的 role 可以用于前端展示，但 service 以数据库中的当前角色为最终依据。第一版不引入 refresh token。
+
+首次部署通过本地 CLI 创建第一个管理员，不提供可被网络调用的初始化接口：
+
+```powershell
+$env:ADMIN_PASSWORD = "replace-with-a-strong-password"
+go run ./cmd/admin -username admin -nickname Administrator
+Remove-Item Env:ADMIN_PASSWORD
+```
+
+CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字节。后续用户维护统一使用受 admin 角色保护的 `/admin/users` 路由。
 
 ### 4.2 文章生命周期
 

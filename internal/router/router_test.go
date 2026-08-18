@@ -15,7 +15,7 @@ func TestFallbackResponsesUseHTTP200AndBusinessCode(t *testing.T) {
 		response.Success(w, "ok")
 	})
 	adminRoutes := newRouter()
-	r := New(serviceRoutes, adminRoutes, true)
+	r := New(serviceRoutes, newRouter(), adminRoutes, true)
 
 	tests := []struct {
 		name     string
@@ -52,7 +52,7 @@ func TestRecovererUsesUnifiedResponse(t *testing.T) {
 	serviceRoutes.Get("/panic", func(http.ResponseWriter, *http.Request) {
 		panic("test panic")
 	})
-	r := New(serviceRoutes, chi.NewRouter(), true)
+	r := New(serviceRoutes, chi.NewRouter(), chi.NewRouter(), true)
 	recorder := httptest.NewRecorder()
 
 	r.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/service/panic", nil))

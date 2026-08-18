@@ -40,3 +40,11 @@
 - 最终通过 `go test ./...`、`go test -race ./...`、`go vet ./...`、`go build ./...`、`gofmt -d` 和文档链接检查。
 - 使用不存在的数据库启动服务时按预期在 Ping 阶段返回错误并以非零状态退出。
 - M0 实现完成并创建签名 commit，等待用户验收后进入 M1。
+- 用户验收 M0，同意进入 M1。
+- M1 开始：User 语义重构、用户 CRUD、JWT/当前用户、角色守卫和首个管理员 CLI。
+- 已核对现有认证栈与本地 jwtauth/pgx 接口，确定 UserRepository 复用、JWT claims、当前用户加载和事务保护方案。
+- 用户确认后端路由不使用 `/api` 前缀；认证与后台路由调整为 `/auth`、`/admin`，并同步 API 文档。
+- 已完成 User 模型/仓储重构、用户 CRUD、bcrypt、2 小时 JWT、数据库当前用户加载、admin 角色守卫与首个管理员 CLI。
+- 已实现事务级 advisory lock 保护最后一个 admin，并禁止当前 admin 删除自己。
+- 新增认证、用户服务、中间件单元测试及 UserRepository PostgreSQL 集成测试；默认测试与本地 postgres 临时 schema 验证均通过。
+- M1 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、`go build ./...` 与文档链接检查，准备创建独立签名 commit。

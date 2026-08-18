@@ -2,15 +2,29 @@ package router
 
 import (
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/handler"
+	appmiddleware "github.com/KawaiiSh1zuku/SimpleBlog/internal/middleware"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 )
 
-// AdminRouter 返回一个包含所有用户（管理员）相关路由的 chi.Router
-func AdminRouter(adminHandler *handler.AdminHandler) chi.Router {
+func AdminRouter(
+	userHandler *handler.UserHandler,
+	tokenAuth *jwtauth.JWTAuth,
+	users appmiddleware.CurrentUserStore,
+) chi.Router {
 	r := newRouter()
+	r.Use(jwtauth.Verifier(tokenAuth))
+	r.Use(appmiddleware.Authenticate(users))
 
-	// 登录不需要 JWT
-	r.Post("/login", adminHandler.Login) // POST /admin/login
-
+	r.Group(func(admin chi.Router) {
+		admin.Use(appmiddleware.RequireRole(model.RoleAdmin))
+		admin.Get("/users", userHandler.List)
+		admin.Post("/users", userHandler.Create)
+		admin.Get("/users/{userID}", userHandler.Get)
+		admin.Patch("/users/{userID}", userHandler.Update)
+		admin.Delete("/users/{userID}", userHandler.Delete)
+		admin.Put("/users/{userID}/password", userHandler.UpdatePassword)
+	})
 	return r
 }

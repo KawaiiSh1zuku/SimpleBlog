@@ -47,9 +47,9 @@
 ## 2. 路由分组
 
 ```text
-/api/auth       登录和当前用户
-/api            公开内容
-/api/admin      登录后的后台；contributor 也使用此路径
+/auth           登录和当前用户
+/               公开内容
+/admin          登录后的后台；contributor 也使用此路径
 /service        健康检查等服务端点
 ```
 
@@ -58,21 +58,21 @@
 ## 3. 认证
 
 ```text
-POST /api/auth/login
-GET  /api/auth/me
+POST /auth/login
+GET  /auth/me
 ```
 
-- login 接收 username、password 和 Turnstile token。
+- login 接收 username 和 password，成功后签发 2 小时有效的 JWT。
 - me 返回当前用户的 id、username、nickname、avatar_url 和 role。
 - JWT 使用 `Authorization: Bearer <token>`。
 
 ## 4. 公开文章与分类
 
 ```text
-GET /api/posts
-GET /api/posts/{slug}
-GET /api/categories
-GET /api/tags
+GET /posts
+GET /posts/{slug}
+GET /categories
+GET /tags
 ```
 
 文章列表支持：
@@ -87,8 +87,8 @@ GET /api/tags
 ## 5. 公开评论
 
 ```text
-GET  /api/posts/{slug}/comments
-POST /api/posts/{slug}/comments
+GET  /posts/{slug}/comments
+POST /posts/{slug}/comments
 ```
 
 创建评论请求包含：
@@ -129,26 +129,27 @@ hidden/deleted 节点返回占位内容，但保留 replies。deleted 节点固�
 仅 admin：
 
 ```text
-GET    /api/admin/users
-POST   /api/admin/users
-GET    /api/admin/users/{id}
-PATCH  /api/admin/users/{id}
-DELETE /api/admin/users/{id}
-PUT    /api/admin/users/{id}/password
+GET    /admin/users
+POST   /admin/users
+GET    /admin/users/{id}
+PATCH  /admin/users/{id}
+DELETE /admin/users/{id}
+PUT    /admin/users/{id}/password
 ```
 
 DELETE 执行软删除。修改密码使用独立路由，避免普通资料更新误改凭据。
+管理员不能删除自己；删除或降级最后一个有效 admin 返回业务 code 409。用户名、昵称与角色更新使用 PATCH，未提供字段保持不变。
 
 ## 7. 文章后台
 
 ```text
-GET    /api/admin/posts
-POST   /api/admin/posts
-GET    /api/admin/posts/{id}
-PATCH  /api/admin/posts/{id}
-DELETE /api/admin/posts/{id}
-POST   /api/admin/posts/{id}/publish
-POST   /api/admin/posts/{id}/withdraw
+GET    /admin/posts
+POST   /admin/posts
+GET    /admin/posts/{id}
+PATCH  /admin/posts/{id}
+DELETE /admin/posts/{id}
+POST   /admin/posts/{id}/publish
+POST   /admin/posts/{id}/withdraw
 ```
 
 - contributor 列表只返回自己的文章。
@@ -162,11 +163,11 @@ POST   /api/admin/posts/{id}/withdraw
 仅 admin：
 
 ```text
-GET    /api/admin/categories
-POST   /api/admin/categories
-GET    /api/admin/categories/{id}
-PATCH  /api/admin/categories/{id}
-DELETE /api/admin/categories/{id}
+GET    /admin/categories
+POST   /admin/categories
+GET    /admin/categories/{id}
+PATCH  /admin/categories/{id}
+DELETE /admin/categories/{id}
 ```
 
 存在关联文章的分类不能删除，返回业务 code 409。
@@ -176,10 +177,10 @@ DELETE /api/admin/categories/{id}
 ## 9. 评论后台
 
 ```text
-GET    /api/admin/comments
-POST   /api/admin/comments/{id}/hide
-POST   /api/admin/comments/{id}/show
-DELETE /api/admin/comments/{id}
+GET    /admin/comments
+POST   /admin/comments/{id}/hide
+POST   /admin/comments/{id}/show
+DELETE /admin/comments/{id}
 ```
 
 - contributor 只管理自己文章下的评论。
@@ -190,7 +191,7 @@ DELETE /api/admin/comments/{id}
 ## 10. S3 图片直传
 
 ```text
-POST /api/admin/uploads/presign
+POST /admin/uploads/presign
 ```
 
 请求只提供文件元信息，例如原始文件名、Content-Type 和大小。响应提供：

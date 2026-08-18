@@ -144,3 +144,16 @@
 - 现有 docs/database.md 已包含最终四表 DDL，M0 的 `migrations/000001_init.sql` 应与该设计保持一致。
 - PostgreSQL 18 本地实例可用；初始 SQL 已在随机 schema 的事务中完整执行，四表创建与“删除文章级联删除父子评论”均通过，随后回滚且未留下对象。
 - 应用通过唯一的 response.JSON 写入 HTTP status；静态扫描未发现 http.Error 或其他直接 WriteHeader 调用。
+
+## M1 实现决策
+
+- 现有认证代码仍查询 `admins.avatar_img`，与 M0 的 `users.avatar_url/deleted_at/timestamps` schema 不一致；M1 必须一次性完成模型、SQL、路由和构造函数重命名。
+- 使用同一个 UserRepository 服务登录、当前用户加载和用户 CRUD；不保留独立 AuthRepository。
+- jwtauth v5 提供 SetIssuedNow/SetExpiry，但没有 SetIssuer helper；issuer 直接写入 claims。
+- JWT role 只用于客户端展示；Authenticate middleware 从 sub 解析 UUID 后查询未删除 users，并把最新 User 放入 context。
+- 最后一个 admin 的删除/降级需要跨请求串行化；推荐由 UserRepository 在事务内获取 PostgreSQL advisory transaction lock，再检查并更新。
+- 用户列表规模很小，M1 不引入分页；密码使用独立更新动作，任何 DTO 都不返回 password_hash/deleted_at。
+- 首个 admin 使用本地 CLI 和 ADMIN_PASSWORD 环境变量创建，不开放匿名 bootstrap HTTP 路由，也不新增终端密码依赖。
+- 用户确认这是纯后端项目，所有资源路由不使用 `/api` 前缀；M1 使用 `/auth` 和 `/admin`，后续公开资源直接使用 `/posts`、`/categories` 等顶层路径。
+- `/admin` 是后台命名空间而非 admin 角色命名空间；JWT 与当前用户校验作用于整个路由器，admin 角色守卫只包围 `/admin/users`，为 M2 的 contributor 文章管理保留正确边界。
+- 登录首版不额外引入 Turnstile；匿名评论在 M4 使用现有 Turnstile 能力，登录滥用防护留在 M6 统一处理。
