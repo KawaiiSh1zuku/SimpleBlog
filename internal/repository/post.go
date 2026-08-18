@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
 	"github.com/google/uuid"
@@ -20,6 +22,18 @@ type UpdatePostParams struct {
 	Summary    *string
 	Content    *string
 	Tags       *[]string
+}
+
+type PublishedCursor struct {
+	PublishedAt time.Time
+	ID          uuid.UUID
+}
+
+type ListPublishedParams struct {
+	Limit        int
+	CategorySlug string
+	Tag          string
+	Cursor       *PublishedCursor
 }
 
 func NewPostRepository(db *pgxpool.Pool) *PostRepository { return &PostRepository{DB: db} }
@@ -53,6 +67,77 @@ func (r *PostRepository) List(ctx context.Context, authorID *uuid.UUID) ([]model
 
 func (r *PostRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Post, error) {
 	return scanPost(r.DB.QueryRow(ctx, postSelect+" WHERE id = $1", id))
+}
+
+func (r *PostRepository) ListPublished(ctx context.Context, params ListPublishedParams) ([]model.PublicPost, error) {
+	query := publicPostSelect + " WHERE p.status = 'published'"
+	args := make([]any, 0, 5)
+	addArgument := func(value any) string {
+		args = append(args, value)
+		return fmt.Sprintf("$%d", len(args))
+	}
+	if params.CategorySlug != "" {
+		query += " AND c.slug = " + addArgument(params.CategorySlug)
+	}
+	if params.Tag != "" {
+		query += " AND p.tags @> ARRAY[" + addArgument(params.Tag) + "]::TEXT[]"
+	}
+	if params.Cursor != nil {
+		publishedAt := addArgument(params.Cursor.PublishedAt)
+		id := addArgument(params.Cursor.ID)
+		query += " AND (p.published_at, p.id) < (" + publishedAt + ", " + id + ")"
+	}
+	query += " ORDER BY p.published_at DESC, p.id DESC LIMIT " + addArgument(params.Limit)
+
+	rows, err := r.DB.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	posts := make([]model.PublicPost, 0)
+	for rows.Next() {
+		post, err := scanPublicPost(rows)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, *post)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return posts, nil
+}
+
+func (r *PostRepository) GetPublishedBySlug(ctx context.Context, slug string) (*model.PublicPost, error) {
+	return scanPublicPost(r.DB.QueryRow(ctx, publicPostSelect+`
+		WHERE p.status = 'published' AND p.slug = $1
+	`, slug))
+}
+
+func (r *PostRepository) ListPublishedTags(ctx context.Context) ([]string, error) {
+	rows, err := r.DB.Query(ctx, `
+		SELECT DISTINCT tag
+		FROM posts
+		CROSS JOIN LATERAL UNNEST(tags) AS tag
+		WHERE status = 'published'
+		ORDER BY tag
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tags := make([]string, 0)
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tags, nil
 }
 
 func (r *PostRepository) Create(ctx context.Context, post *model.Post) (*model.Post, error) {
@@ -121,12 +206,33 @@ const postSelect = `
 	       content, tags, status, published_at, created_at, updated_at
 	FROM posts`
 
+const publicPostSelect = `
+	SELECT p.id, p.author_id, p.category_id, p.slug, p.title, COALESCE(p.summary, ''),
+	       p.content, p.tags, p.status, p.published_at, p.created_at, p.updated_at,
+	       u.nickname, COALESCE(u.avatar_url, ''), c.name, c.slug
+	FROM posts p
+	JOIN users u ON u.id = p.author_id
+	JOIN categories c ON c.id = p.category_id`
+
 func scanPost(row rowScanner) (*model.Post, error) {
 	var post model.Post
 	if err := row.Scan(
 		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
 		&post.Summary, &post.Content, &post.Tags, &post.Status, &post.PublishedAt,
 		&post.CreatedAt, &post.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
+func scanPublicPost(row rowScanner) (*model.PublicPost, error) {
+	var post model.PublicPost
+	if err := row.Scan(
+		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
+		&post.Summary, &post.Content, &post.Tags, &post.Status, &post.PublishedAt,
+		&post.CreatedAt, &post.UpdatedAt, &post.AuthorNickname, &post.AuthorAvatarURL,
+		&post.CategoryName, &post.CategorySlug,
 	); err != nil {
 		return nil, err
 	}

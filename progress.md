@@ -55,3 +55,10 @@
 - 已完成分类 admin 权限、文章作者所有权、slug 校验、标签规范化、draft/published 发布撤回状态机；普通 PATCH 无法提交 author_id/status。
 - 已新增 M2 service、router、handler 单元测试和 PostgreSQL 内容生命周期集成测试；Markdown + LaTeX 原文与 published_at 保留规则验证通过。
 - M2 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 临时 schema、`go build ./...` 与文档链接检查，准备创建独立签名 commit。
+- 用户验收 M2，同意继续完成 M3。
+- M3 开始：公开已发布文章列表与详情、分类和标签列表、分类/标签筛选、稳定游标分页。
+- 已实现 published-only 公开查询、作者/分类安全联表字段、分类与标签筛选，以及 `(published_at, id)` Base64URL 游标分页。
+- 已新增公开 DTO、PublicService/PublicHandler/PublicRouter 并挂载 `/posts`、`/categories`、`/tags`，无需登录。
+- 单元、路由与真实 PostgreSQL 测试已验证草稿不会进入列表、详情或标签聚合，列表不返回正文，详情保留 Markdown + LaTeX 原文。
+- M3 最终测试门禁通过；首次 DTO 静态扫描命令因 PowerShell 正则引号错误失败，已记录并改用单引号重跑。
+- M3 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 临时 schema、`go build ./...`、公开字段静态扫描与文档链接检查，准备创建独立签名 commit。

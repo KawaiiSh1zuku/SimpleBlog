@@ -31,3 +31,13 @@ type Post struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
+
+// PublicPost contains the safe display metadata joined for public reads.
+// HTTP handlers still map it through a DTO rather than serializing it directly.
+type PublicPost struct {
+	Post
+	AuthorNickname  string
+	AuthorAvatarURL string
+	CategoryName    string
+	CategorySlug    string
+}

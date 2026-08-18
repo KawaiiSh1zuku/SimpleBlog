@@ -61,10 +61,12 @@ func run(ctx context.Context) error {
 	userService := service.NewUserService(userRepository)
 	categoryService := service.NewCategoryService(categoryRepository)
 	postService := service.NewPostService(postRepository)
+	publicService := service.NewPublicService(postRepository, categoryRepository)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	postHandler := handler.NewPostHandler(postService)
+	publicHandler := handler.NewPublicHandler(publicService)
 
 	turnstileService := service.NewTurnstileService(cfg.Turnstile.Secret)
 	serviceHandler := handler.NewServiceHandler()
@@ -72,7 +74,8 @@ func run(ctx context.Context) error {
 	serviceRoutes := router.ServiceRouter(serviceHandler, turnstileService)
 	authRoutes := router.AuthRouter(authHandler, tokenAuth, userRepository)
 	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, tokenAuth, userRepository)
-	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, cfg.App.Debug)
+	publicRoutes := router.PublicRouter(publicHandler)
+	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, publicRoutes, cfg.App.Debug)
 
 	server := newHTTPServer(cfg.Server.Address(), rootRouter)
 	slog.Info("starting server", "address", server.Addr)

@@ -173,6 +173,17 @@ ORDER BY tag;
 
 公开 repository 的 SQL 必须直接包含 `status = 'published'`，不能仅依靠 handler 过滤。
 
+公开列表以 `(published_at, id)` 作为降序稳定游标：
+
+```sql
+WHERE status = 'published'
+  AND (published_at, id) < ($cursor_published_at, $cursor_id)
+ORDER BY published_at DESC, id DESC
+LIMIT $limit_plus_one;
+```
+
+首次请求省略游标条件。查询多取一条用于判断是否存在下一页，不执行额外 COUNT。
+
 ### 4.4 多级评论
 
 `parent_id` 指向直属父评论。复合外键 `(parent_id, post_id)` 保证父评论与回复属于同一文章。

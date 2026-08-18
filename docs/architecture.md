@@ -140,6 +140,8 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 
 文章 slug 由客户端显式提供，服务端统一转为小写并限制为字母、数字和单连字符；不从标题自动生成拼音或转写。标签在 service 中 trim、转小写、去空、去重并保序，最多 10 个且每项最多 30 个 Unicode 字符。
 
+公开读取使用独立的 published-only repository 方法，不能复用后台无状态过滤的查询。列表按 `(published_at, id)` 倒序并使用不透明游标分页；列表 DTO 省略正文，详情 DTO 才包含 Markdown + LaTeX 原文。
+
 如果以后要求管理员审核 contributor 文章，应显式增加 `pending_review` 状态，而不是复用 draft。
 
 ### 4.3 多级评论

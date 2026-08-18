@@ -77,12 +77,37 @@ GET /tags
 
 文章列表支持：
 
-- 分页参数。
-- category slug 筛选。
-- tag 筛选。
+- `limit`：默认 20，范围 1 到 100。
+- `cursor`：服务端返回的 Base64URL 不透明游标，客户端不得解析或修改。
+- `category`：按 category slug 精确筛选。
+- `tag`：按规范化后的单个 tag 精确筛选。
 - 按 published_at 倒序。
 
-公开端只能返回 published 文章。正文详情返回 Markdown + LaTeX 原文，不返回服务端渲染 HTML。
+列表响应：
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "slug": "first-post",
+      "title": "First Post",
+      "summary": "summary",
+      "tags": ["go"],
+      "published_at": "2026-08-18T12:00:00Z",
+      "author": {"id": "uuid", "nickname": "Writer", "avatar_url": ""},
+      "category": {"id": "uuid", "name": "Tech", "slug": "tech"}
+    }
+  ],
+  "next_cursor": "opaque-cursor"
+}
+```
+
+`next_cursor` 仅在存在下一页时返回。游标按 `(published_at, id)` 降序定位，翻页请求必须继续携带相同 category/tag 筛选条件。
+
+公开端只能返回 published 文章。列表不返回 content；详情返回 Markdown + LaTeX 原文，不返回服务端渲染 HTML。作者响应只包含 id、nickname、avatar_url，不包含登录用户名。
+
+`GET /categories` 返回全部分类的公开字段；`GET /tags` 只聚合已发布文章使用的标签，草稿标签不会出现。
 
 ## 5. 公开评论
 

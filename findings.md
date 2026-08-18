@@ -166,3 +166,12 @@
 - slug 由客户端显式提供并规范为小写 URL-safe 连字符格式，不从中英文标题自动转写，避免额外依赖和隐式规则。
 - 标签继续存入 posts.tags TEXT[]；service 负责 trim、英文小写、去空、去重、保序，最多 10 个且每个最多 30 个 Unicode 字符。
 - 发布/撤回使用独立动作：首次发布写 published_at，撤回保留 published_at，再发布不刷新原发布时间；普通 PATCH 不能修改 status、author_id 或 published_at。
+
+## M3 实现决策
+
+- 公开文章分页采用 `(published_at, id)` 降序游标，而不是 offset/page；新发布内容不会使后续页出现重复或边界漂移。
+- 游标是 Base64URL 编码的版本化 JSON，客户端只透传；服务端严格校验版本、时间和 UUID，不把数据库结构暴露为多个查询参数。
+- 列表默认 20 条、最大 100 条，repository 查询 `limit + 1` 判断是否存在下一页；响应只在确有下一页时返回 next_cursor。
+- 所有公开文章 SQL 必须直接包含 `status = 'published'`；列表不返回 content，详情才返回 Markdown + LaTeX 原文。
+- 公开文章响应包含作者展示信息和分类摘要，不返回用户名、密码、文章后台状态或其他内部字段。
+- category 按规范化 slug 筛选，tag 按规范化后的单标签精确匹配；分类不存在时列表返回空集合，文章详情 slug 不存在时返回 404。
