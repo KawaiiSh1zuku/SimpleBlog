@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/KawaiiSh1zuku/SimpleBlog/pkg/response"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"github.com/go-chi/chi/v5/middleware"
 	"net/http"
 )

@@ -2,8 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/dto"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
-	"github.com/KawaiiSh1zuku/SimpleBlog/pkg/response"
 	"net/http"
 )
 
@@ -19,17 +20,11 @@ func NewAdminHandler(authService *service.AuthService) *AdminHandler {
 	}
 }
 
-// LoginRequest 用于登录请求的结构体
-type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
 // ------------------- 方法即 Handler -------------------
 
 // Login POST /admin/login
 func (h *AdminHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
+	var req dto.LoginRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid request")

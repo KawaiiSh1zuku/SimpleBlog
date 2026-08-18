@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
 	"net/http"
 )
@@ -13,11 +14,7 @@ func TurnstileMiddleware(
 			token := r.Header.Get("X-Turnstile-Token")
 
 			if token == "" {
-				http.Error(
-					w,
-					"请求需要 Turnstile 验证",
-					http.StatusForbidden,
-				)
+				response.Error(w, 401, "请求需要 Turnstile 验证")
 				return
 			}
 
@@ -26,11 +23,7 @@ func TurnstileMiddleware(
 				token,
 				r.RemoteAddr,
 			); err != nil {
-				http.Error(
-					w,
-					"Turnstile 验证不通过",
-					http.StatusForbidden,
-				)
+				response.Error(w, 403, "Turnstile 验证不通过")
 				return
 			}
 
