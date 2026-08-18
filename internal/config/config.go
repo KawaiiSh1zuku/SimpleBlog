@@ -1,8 +1,14 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
+	"net"
+	"net/url"
+	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -29,6 +35,7 @@ type DatabaseConfig struct {
 	Username string `env:"DB_USER" envDefault:"postgres"`
 	Password string `env:"DB_PASSWORD" envDefault:"password"`
 	DBName   string `env:"DB_NAME" envDefault:"mydb"`
+	SSLMode  string `env:"DB_SSLMODE" envDefault:"disable"`
 }
 
 type JWTConfig struct {
@@ -47,5 +54,103 @@ func LoadConfig() (*Config, error) {
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 	return cfg, nil
+}
+
+// Validate 在依赖初始化前检查配置，避免服务带着无效或生产默认值启动。
+func (c *Config) Validate() error {
+	var errs []error
+
+	if !isLogLevel(c.App.Loglevel) {
+		errs = append(errs, fmt.Errorf("invalid LOG_LEVEL %q", c.App.Loglevel))
+	}
+	if strings.TrimSpace(c.Server.Host) == "" {
+		errs = append(errs, errors.New("SERVER_HOST must not be empty"))
+	}
+	if err := validatePort("SERVER_PORT", c.Server.Port); err != nil {
+		errs = append(errs, err)
+	}
+
+	if strings.TrimSpace(c.Database.Host) == "" {
+		errs = append(errs, errors.New("DB_HOST must not be empty"))
+	}
+	if err := validatePort("DB_PORT", c.Database.Port); err != nil {
+		errs = append(errs, err)
+	}
+	if strings.TrimSpace(c.Database.Username) == "" {
+		errs = append(errs, errors.New("DB_USER must not be empty"))
+	}
+	if c.Database.Password == "" {
+		errs = append(errs, errors.New("DB_PASSWORD must not be empty"))
+	}
+	if strings.TrimSpace(c.Database.DBName) == "" {
+		errs = append(errs, errors.New("DB_NAME must not be empty"))
+	}
+	if !isSSLMode(c.Database.SSLMode) {
+		errs = append(errs, fmt.Errorf("invalid DB_SSLMODE %q", c.Database.SSLMode))
+	}
+
+	if c.App.Debug {
+		return errors.Join(errs...)
+	}
+
+	if c.Database.Password == "password" {
+		errs = append(errs, errors.New("DB_PASSWORD must not use the production default"))
+	}
+	if len(c.JWT.Secret) < 32 || c.JWT.Secret == "secret" {
+		errs = append(errs, errors.New("JWT_SECRET must contain at least 32 characters in production"))
+	}
+	if c.Turnstile.Secret == "" || c.Turnstile.Secret == "secret" {
+		errs = append(errs, errors.New("TURNSTILE_SECRET must be configured in production"))
+	}
+
+	return errors.Join(errs...)
+}
+
+// Address 返回适用于 http.Server 的监听地址。
+func (c ServerConfig) Address() string {
+	return net.JoinHostPort(c.Host, c.Port)
+}
+
+// ConnectionString 构造经过 URL 编码的 PostgreSQL 连接字符串。
+func (c DatabaseConfig) ConnectionString() string {
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(c.Username, c.Password),
+		Host:   net.JoinHostPort(c.Host, c.Port),
+		Path:   "/" + strings.TrimPrefix(c.DBName, "/"),
+	}
+	query := u.Query()
+	query.Set("sslmode", c.SSLMode)
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func validatePort(name string, value string) error {
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("%s must be an integer between 1 and 65535", name)
+	}
+	return nil
+}
+
+func isLogLevel(value string) bool {
+	switch strings.ToUpper(value) {
+	case "DEBUG", "INFO", "WARN", "ERROR":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSSLMode(value string) bool {
+	switch value {
+	case "disable", "allow", "prefer", "require", "verify-ca", "verify-full":
+		return true
+	default:
+		return false
+	}
 }

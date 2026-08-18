@@ -9,7 +9,7 @@ import (
 
 // ServiceRouter 返回一个包含所有服务相关路由的 chi.Router
 func ServiceRouter(serviceHandler *handler.ServiceHandler, turnstileService *service.TurnstileService) chi.Router {
-	r := chi.NewRouter()
+	r := newRouter()
 
 	// 可以在这里添加仅对服务路由生效的中间件
 	// r.Use(SomeUserMiddleware)

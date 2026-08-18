@@ -7,7 +7,7 @@ import (
 
 // AdminRouter 返回一个包含所有用户（管理员）相关路由的 chi.Router
 func AdminRouter(adminHandler *handler.AdminHandler) chi.Router {
-	r := chi.NewRouter()
+	r := newRouter()
 
 	// 登录不需要 JWT
 	r.Post("/login", adminHandler.Login) // POST /admin/login

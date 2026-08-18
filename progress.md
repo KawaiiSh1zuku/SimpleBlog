@@ -26,3 +26,17 @@
 - 第一次相对链接检查脚本参数错误，已记录；内容一致性扫描通过，等待修正后重验链接。
 - 已用修正后的脚本验证四份文档的相对链接全部可解析，并确认 UTF-8 中文标题可正常读取。
 - 阶段 9 完成；本轮只新增/修改设计与规划文档，没有修改业务代码或数据库。
+- 用户批准 milestone 计划并要求每个 milestone 单独签名 commit 后通知验收。
+- 已确认工作区干净且 Git 签名已配置，创建 `codex/simpleblog-milestones` 分支。
+- M0 开始：先固化 milestone 文档与验收边界。
+- 已新增 `docs/milestones.md` 并同步无限评论深度与 S3 文件限制；开始实现初始 schema。
+- 已核对 response/config/router 的调用范围，确定 M0 可在不改变业务 handler 合约的前提下集中实现基础能力。
+- 已创建 `migrations/000001_init.sql` 与执行说明，schema 与数据库设计文档一致。
+- 已实现配置集中校验、数据库 URL 安全构造、启动 Ping、HTTP 超时和信号驱动优雅关闭。
+- 已新增根路由装配、RequestID、自定义 panic 恢复以及统一的 404/405 HTTP 200 响应，并补充单元测试。
+- 首轮 `gofmt -d`、`go test ./...`、`go vet ./...` 均通过。
+- SQL 集成测试发现 `.env` 指向的 SimpleBlog 数据库尚不存在；记录后改用 postgres 维护库进行非持久化验证。
+- SQL 在随机 schema 中执行成功，并验证删除文章可级联清理父子评论；事务已回滚。
+- 最终通过 `go test ./...`、`go test -race ./...`、`go vet ./...`、`go build ./...`、`gofmt -d` 和文档链接检查。
+- 使用不存在的数据库启动服务时按预期在 Ping 阶段返回错误并以非零状态退出。
+- M0 实现完成并创建签名 commit，等待用户验收后进入 M1。

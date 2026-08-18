@@ -122,7 +122,7 @@ POST /api/posts/{slug}/comments
 }
 ```
 
-hidden/deleted 节点返回占位内容，但保留 replies。deleted 节点固定显示“该评论已被删除”。为避免任意深度 JSON 造成前端布局问题，前端可以限制视觉缩进层数，但不能改变真实 parent_id 关系。
+hidden/deleted 节点返回占位内容，但保留 replies。deleted 节点固定显示“该评论已被删除”。后端不限制回复深度；前端采用类似 B 站的不随层级增加缩进的展示，但不能改变真实 parent_id 关系。
 
 ## 6. 用户管理
 
@@ -211,6 +211,12 @@ POST /api/admin/uploads/presign
 ```
 
 前端直接向 upload_url 上传，文件内容不经过 Blog API。
+
+首版上传限制：
+
+- MIME：`image/jpeg`、`image/png`、`image/webp`、`image/gif`。
+- 单文件最大 10 MiB。
+- 服务端生成 object key，不接受客户端提供任意对象路径。
 
 ## 11. 服务端点
 

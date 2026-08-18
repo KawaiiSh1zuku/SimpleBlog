@@ -127,3 +127,20 @@
 - 当前 PostgreSQL 尚未创建业务表，因此不需要 admins -> users 数据迁移；首份 schema/migration 直接创建 users。
 - 用户确认业务异常继续使用 HTTP 200，响应体 code 为真实业务状态；文档需要求所有 handler/middleware/404/405/recoverer 统一遵循此契约。
 - 用户明确要求同步到 docs；将创建 architecture.md、database.md、permissions.md、api.md。
+
+## Milestone 执行约束
+
+- 用户批准按 M0-M7 顺序实施；一次只完成一个 milestone，完成后提交并等待用户验收/签名确认。
+- 评论后端不限制回复深度；数据仍使用 parent_id 邻接表，前端采用不随层级增加缩进的展示。
+- S3 首版限制已确认：JPEG、PNG、WebP、GIF，单文件最大 10 MiB。
+- 当前工作区在实施前为 clean，Git 已配置 commit.gpgsign=true 和 signing key；从 `codex/simpleblog-milestones` 分支开始实施。
+
+## M0 实现勘察
+
+- response 的公开调用目前只有 Success/Error 包装函数，没有代码直接调用底层 JSON，因此可以把“HTTP 永远 200”收口到 response.JSON 而不破坏现有调用方。
+- 配置结构仅在 `cmd/server/main.go` 使用，适合在 Config.Load 后集中 Validate，并为 DatabaseConfig 增加安全构造连接字符串的方法。
+- 根 Chi router 目前在 main 内创建，NotFound/MethodNotAllowed/panic 无法统一测试；M0 将增加 `router.New` 作为根路由装配函数。
+- 本机没有 psql 或 Docker，只能先通过静态检查与可选 PostgreSQL 集成测试验证 schema；若本地测试数据库可用，再执行事务内 schema 验证。
+- 现有 docs/database.md 已包含最终四表 DDL，M0 的 `migrations/000001_init.sql` 应与该设计保持一致。
+- PostgreSQL 18 本地实例可用；初始 SQL 已在随机 schema 的事务中完整执行，四表创建与“删除文章级联删除父子评论”均通过，随后回滚且未留下对象。
+- 应用通过唯一的 response.JSON 写入 HTTP status；静态扫描未发现 http.Error 或其他直接 WriteHeader 调用。

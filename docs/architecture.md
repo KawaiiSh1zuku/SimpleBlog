@@ -139,6 +139,7 @@ JWT 中的 role 可以用于前端展示，但 service 以数据库中的当前�
 - 父评论必须与回复属于同一文章。
 - `parent_id` 创建后不可修改，避免环和跨树移动。
 - API 可返回平铺数据和 parent_id，或由 CommentService 组装 replies 树；第一版推荐服务端组装树。
+- 后端不限制回复深度；前端采用类似 B 站的平铺视觉，不随真实层级持续增加缩进。
 
 隐藏或删除父评论时必须保留树节点：
 
@@ -155,6 +156,8 @@ JWT 中的 role 可以用于前端展示，但 service 以数据库中的当前�
 5. 前端把 public URL 插入 Markdown 正文。
 
 第一版不建立 uploads 表。对象路径由服务端生成，客户端不能指定 bucket 或任意 key。用于正文的 Bucket 应提供公开或 CDN 读取地址。
+
+首版只允许 JPEG、PNG、WebP、GIF，单文件最大 10 MiB。
 
 ## 5. 横切能力
 

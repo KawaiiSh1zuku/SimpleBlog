@@ -1,7 +1,9 @@
 package utils
 
+import "strings"
+
 func MapLogLevel(level string) int {
-	switch level {
+	switch strings.ToUpper(level) {
 	case "DEBUG":
 		return -4
 	case "INFO":
