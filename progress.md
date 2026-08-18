@@ -87,3 +87,18 @@
 - 已补测 contributor 评论执行计划并修正全站索引扫描热点；九条代表性查询均通过索引与顺序扫描断言。
 - 已让列表、登录和认证中间件统一把可重试 PostgreSQL 错误映射为业务 code 503。
 - M6 最终通过 `go mod verify`、`gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、`go build ./...`、真实 PostgreSQL 全量集成测试、文档链接与敏感信息一致性扫描，准备创建签名 commit。
+- 用户确认 M7 可标记完成，并提出 M8：文章/评论 RSS、友情链接、SQL 注入与 XSS 防护。
+- 已恢复规划文件并确认上一轮文档已被暂存；保留现有 staged 状态，不提交。
+- 已把 M7 标记完成并登记 M8 草案；RSS、友情链接与 XSS 策略等待产品确认。
+- 用户确认文章 HTML 可执行是预期行为，评论才是 XSS 防护范围；后续安全设计不得清洗文章 Markdown/HTML。
+- 已审计现有 repository SQL 构造：外部值均参数化，动态部分仅为固定子句和占位符编号；尚未发现 SQL 注入入口。
+- 已确认评论内容当前原样存储/返回，JSON 传输转义不能替代前端 DOM 安全；M8 需在评论写入与历史数据输出两侧建立纯文本防线。
+- 用户批准 M8 推荐方案；开始实现 RSS 2.0、友情链接公开列表/admin CRUD、评论纯文本防线和 SQL 注入回归测试。
+- 已新增 `SITE_NAME`、`SITE_DESCRIPTION`、`SITE_BASE_URL`，实现 `/rss/article` 与 `/rss/comment` 原始 RSS 2.0 XML；RSS 失败使用真实 HTTP 500并由访问日志记录真实状态。
+- 已实现 `friend_links` migration 及公开 `GET /links`、admin-only `/admin/links` CRUD；URL 只允许 HTTP(S)，服务端不抓取外部资源。
+- 已把评论昵称/正文收束为规范化纯文本：新输入拒绝 HTML 尖括号和危险控制字符，DTO/RSS 对历史旧数据执行输出中和，文章可信 HTML 保持原样。
+- 已加入 `X-Content-Type-Options: nosniff`、评论数据库纵深约束、危险旧链接 DTO 降级、RSS XML 编码与可见性测试。
+- 默认质量门禁全部通过：`go mod verify`、`gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、`go build ./...`。
+- 真实 PostgreSQL 全量测试通过：迁移、RSS published/visible 过滤、评论 CHECK、SQL 注入载荷、查询计划与既有 repository 回归均成功；RSS 评论查询命中部分索引。
+- 已同步 README 与 docs 中的 API、架构、数据库、权限、配置、部署、测试、限制、PostgreSQL 优化、安全边界及 milestone；文档链接和过期术语扫描通过。
+- M8 已完成，按用户本轮要求保留为未提交工作区变更。

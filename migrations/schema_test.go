@@ -61,7 +61,7 @@ func TestInitialSchema(t *testing.T) {
 		}
 	}
 
-	for _, table := range []string{"users", "categories", "posts", "comments"} {
+	for _, table := range []string{"users", "categories", "posts", "comments", "friend_links"} {
 		var relation *string
 		if err := tx.QueryRow(ctx, "SELECT TO_REGCLASS($1)", table).Scan(&relation); err != nil {
 			t.Fatalf("look up table %s: %v", table, err)
@@ -80,6 +80,7 @@ func assertOptimizedIndexes(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	for _, index := range []string{
 		"posts_updated_idx", "posts_author_updated_idx", "posts_published_tags_gin",
 		"posts_category_public_idx", "comments_post_created_idx", "comments_created_idx",
+		"friend_links_name_idx", "comments_visible_created_idx",
 	} {
 		var relation *string
 		if err := tx.QueryRow(ctx, "SELECT TO_REGCLASS($1)", index).Scan(&relation); err != nil {

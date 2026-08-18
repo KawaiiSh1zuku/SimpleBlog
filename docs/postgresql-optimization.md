@@ -30,10 +30,11 @@ M6 针对实际 API 查询优化 PostgreSQL 访问，重点检查：索引与筛
 | admin 文章列表 | `posts_updated_idx` | 0.037 ms | 11 |
 | 公开评论树 | `posts_slug_uq`、`comments_post_created_idx` | 0.060 ms | 9 |
 | 后台评论列表 | `comments_created_idx` | 0.422 ms | 156 |
+| 评论 RSS | `comments_visible_created_idx` | 0.407 ms | 190 |
 | contributor 评论列表 | `posts_author_updated_idx`、`comments_post_created_idx` | 2.054 ms | 1,303 |
 | 登录用户查询 | `users_username_active_uq` | 0.016 ms | 3 |
 
-九条查询均命中预期索引，高增长表未出现被测试禁止的顺序扫描。时间和缓冲区数字只记录本次样本，验收依据是执行计划形状与索引匹配，不以亚毫秒结果推断生产性能。
+十条查询均命中预期索引，高增长表未出现被测试禁止的顺序扫描。时间和缓冲区数字只记录本次样本，验收依据是执行计划形状与索引匹配，不以亚毫秒结果推断生产性能。
 
 ## 4. SQL 与数据最小化
 
@@ -45,6 +46,7 @@ M6 针对实际 API 查询优化 PostgreSQL 访问，重点检查：索引与筛
 - 评论树一次读取文章全部节点并在内存中组装，不按层级查询，因此不产生 N+1。
 - contributor 评论列表先物化其文章集合，再以 LATERAL 查询命中逐文章评论索引；代表性数据下避免了原计划扫描约 5,001 条全站评论并进行同数量文章主键查找。
 - SQL 值全部通过 pgx 参数传递；可选条件只拼接服务端固定片段和编号占位符。
+- M8 注入回归把 `x'); DROP TABLE friend_links; --` 作为友情链接字段写入并原样读回，表仍存在；这验证 repository 使用参数绑定，而不是依赖字符过滤。
 
 ## 5. 事务、错误与可观测性
 

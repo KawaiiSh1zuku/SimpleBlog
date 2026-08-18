@@ -26,6 +26,13 @@ func LimitRequestBody(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
+func SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func AccessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startedAt := time.Now()
@@ -54,12 +61,22 @@ func AccessLog(next http.Handler) http.Handler {
 
 type accessResponseWriter struct {
 	http.ResponseWriter
-	businessCode int
-	bytes        int
+	businessCode    int
+	businessCodeSet bool
+	bytes           int
 }
 
 func (w *accessResponseWriter) SetBusinessCode(code int) {
 	w.businessCode = code
+	w.businessCodeSet = true
+}
+
+func (w *accessResponseWriter) WriteHeader(code int) {
+	if !w.businessCodeSet {
+		w.businessCode = code
+		w.businessCodeSet = true
+	}
+	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w *accessResponseWriter) Write(data []byte) (int, error) {

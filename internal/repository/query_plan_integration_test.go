@@ -103,6 +103,14 @@ func TestRepresentativePostgreSQLQueryPlans(t *testing.T) {
 			args: []any{51}, required: []string{"comments_created_idx"}, forbidden: []string{"Seq Scan on comments"},
 		},
 		{
+			name: "rss comments",
+			query: `SELECT c.id, p.slug, p.title, c.nickname, c.content, c.created_at
+			         FROM comments c JOIN posts p ON p.id = c.post_id
+			         WHERE c.status = 'visible' AND p.status = 'published'
+			         ORDER BY c.created_at DESC, c.id DESC LIMIT $1`,
+			args: []any{50}, required: []string{"comments_visible_created_idx"}, forbidden: []string{"Seq Scan on comments"},
+		},
+		{
 			name: "managed comments by author",
 			query: `WITH authored_posts AS MATERIALIZED (
 			           SELECT id FROM posts WHERE author_id = $1

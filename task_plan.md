@@ -32,6 +32,8 @@
 | 14. M4 多级评论 | 已完成 | 匿名评论、任意层级回复、Turnstile、审核与删除墓碑 |
 | 15. M5 S3 图片直传 | 已完成 | POST policy、服务端 object key、限制策略、公开 URL 与真实 MinIO 验证 |
 | 16. M6 质量、安全与 PostgreSQL 优化 | 已完成 | Gravatar、请求限制、日志、错误分类、SQL 执行计划与性能证据 |
+| 17. M7 发布验收与文档冻结 | 已完成 | 配置、部署、测试、环境变量与已知边界文档 |
+| 18. M8 RSS、友情链接与内容安全 | 已完成 | RSS 2.0、友情链接 CRUD、SQL 注入测试与评论纯文本安全边界 |
 
 ## 约束
 
@@ -48,6 +50,8 @@
 - 每完成一个 milestone 创建一次签名 commit，并等待用户验收后进入下一 milestone。
 - M6 新增 PostgreSQL 深度优化要求：执行计划、索引、N+1、慢查询、事务锁、参数化 SQL、最小字段读取及可复现性能证据。
 - 公开评论允许在服务端查询 email 以生成 Gravatar URL，但任何公开 DTO 均不得返回 email；镜像源可配置。
+- 用户确认 M7 可以标记完成；新需求归入 M8，未确认产品语义前不实施数据模型和安全契约。
+- 用户批准 M8 推荐方案：RSS 新增站点环境配置并返回最新 50 条；评论 feed 仅 visible；友情链接 PostgreSQL 持久化并提供公开列表/admin CRUD；评论为纯文本，文章 HTML 保持可执行。
 
 ## 错误记录
 
@@ -76,3 +80,8 @@
 | M6 审阅命令尝试读取不存在的 internal/handler/errors.go | 1 | 确认错误映射实际位于 internal/handler/json.go，停止使用假定路径 |
 | contributor 评论物化文章集合后 planner 仍对 comments 选择顺序扫描 | 1 | 继续改为带单文章排序的 LATERAL 查询，强制利用 post_id 时间序索引并重跑 EXPLAIN |
 | Windows 下 rg 直接使用 internal/service/*.go 路径通配符失败 | 1 | 改为搜索目录并用 `-g '*.go'` 过滤 |
+| M8 新增 RSS/友情链接依赖后既有路由测试构造签名不匹配，配置测试缺少 SiteConfig | 1 | 为既有测试补空 RSS/link 路由参数并在 validConfig 中加入站点配置后重跑 |
+| M8 首次批量测试适配补丁与 m4_test.go 实际参数文本不匹配 | 1 | 读取精确调用上下文并拆分补丁应用 |
+| M8 PostgreSQL 集成测试按 .env 连接不存在的 SimpleBlog 数据库（3D000） | 1 | 复用本机 postgres 维护库，在随机临时 schema 中执行迁移、注入与 EXPLAIN 测试 |
+| M8 大批量文档补丁因 PostgreSQL 优化文档精确上下文不匹配而未应用 | 1 | 拆分文档补丁，按各文件实际段落逐项同步 |
+| M8 DTO URL 纵深防护补丁因 gofmt 后 LinkResponse 单行布局不匹配 | 1 | 读取实际文件后按当前布局重应用 |

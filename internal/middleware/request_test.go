@@ -51,3 +51,17 @@ func TestAccessLogRecordsBusinessCodeWithoutSensitiveInputs(t *testing.T) {
 		}
 	}
 }
+
+func TestAccessResponseWriterUsesRealHTTPStatusWhenNoBusinessCodeExists(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	writer := &accessResponseWriter{ResponseWriter: recorder, businessCode: http.StatusOK}
+	writer.WriteHeader(http.StatusInternalServerError)
+	if writer.businessCode != http.StatusInternalServerError || recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("business/http status = %d/%d", writer.businessCode, recorder.Code)
+	}
+	writer.SetBusinessCode(http.StatusBadRequest)
+	writer.WriteHeader(http.StatusOK)
+	if writer.businessCode != http.StatusBadRequest {
+		t.Fatalf("explicit business code was overwritten: %d", writer.businessCode)
+	}
+}

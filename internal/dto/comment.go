@@ -59,8 +59,8 @@ type CommentModerationResponse struct {
 }
 
 func NewPublicCommentResponse(comment *model.Comment, gravatarBaseURL string) *PublicCommentResponse {
-	nickname := comment.Nickname
-	content := comment.Content
+	nickname := safePlainText(comment.Nickname)
+	content := safePlainText(comment.Content)
 	avatarURL := gravatarURL(gravatarBaseURL, comment.Email)
 	switch comment.Status {
 	case model.CommentStatusHidden:
@@ -117,7 +117,7 @@ func NewManagedCommentResponse(comment *model.ManagedComment) ManagedCommentResp
 	return ManagedCommentResponse{
 		ID: comment.ID, PostID: comment.PostID, PostSlug: comment.PostSlug,
 		PostTitle: comment.PostTitle, ParentID: comment.ParentID,
-		Nickname: comment.Nickname, Email: comment.Email, Content: comment.Content,
+		Nickname: safePlainText(comment.Nickname), Email: comment.Email, Content: safePlainText(comment.Content),
 		Status: comment.Status, CreatedAt: comment.CreatedAt, ModeratedAt: comment.ModeratedAt,
 	}
 }

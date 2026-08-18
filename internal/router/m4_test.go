@@ -60,7 +60,7 @@ func TestPublicCommentCreateRequiresTurnstileAndNeverReturnsEmail(t *testing.T) 
 	turnstile := &turnstileVerifierStub{}
 	publicHandler := handler.NewPublicHandler(service.NewPublicService(routePublicPostStore{}, routeCategoryStore{}))
 	commentHandler := handler.NewCommentHandler(service.NewCommentService(commentStore), "https://avatar.example/avatar")
-	r := PublicRouter(publicHandler, commentHandler, turnstile)
+	r := PublicRouter(publicHandler, commentHandler, nil, turnstile)
 	body := []byte(`{"nickname":"Visitor","email":"visitor@example.com","content":"Hello"}`)
 
 	missingRecorder := httptest.NewRecorder()
@@ -96,6 +96,7 @@ func TestPublicCommentCreateMapsFailedTurnstileToForbidden(t *testing.T) {
 	r := PublicRouter(
 		handler.NewPublicHandler(service.NewPublicService(routePublicPostStore{}, routeCategoryStore{})),
 		handler.NewCommentHandler(service.NewCommentService(&routeCommentStore{}), "https://avatar.example/avatar"),
+		nil,
 		turnstile,
 	)
 	request := httptest.NewRequest(http.MethodPost, "/posts/post/comments", strings.NewReader(`{}`))

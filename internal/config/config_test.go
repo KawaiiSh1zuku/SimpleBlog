@@ -61,6 +61,16 @@ func TestConfigValidateRejectsInvalidGravatarURL(t *testing.T) {
 	}
 }
 
+func TestConfigValidateRejectsInvalidSiteMetadata(t *testing.T) {
+	cfg := validConfig()
+	cfg.Site.Name = " "
+	cfg.Site.BaseURL = "https://blog.example.com/path?preview=1"
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "SITE_NAME") || !strings.Contains(err.Error(), "SITE_BASE_URL") {
+		t.Fatalf("Validate() did not reject invalid site metadata: %v", err)
+	}
+}
+
 func TestConfigValidateRejectsInvalidSlowQueryThreshold(t *testing.T) {
 	cfg := validConfig()
 	cfg.Database.SlowQueryMS = 0
@@ -135,5 +145,6 @@ func validConfig() *Config {
 			PublicBaseURL: "https://cdn.example.com",
 		},
 		Gravatar: GravatarConfig{BaseURL: "https://www.gravatar.com/avatar"},
+		Site:     SiteConfig{Name: "SimpleBlog", Description: "A SimpleBlog site", BaseURL: "https://blog.example.com"},
 	}
 }

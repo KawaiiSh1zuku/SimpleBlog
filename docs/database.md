@@ -18,6 +18,7 @@ users      1 ---- n posts
 categories 1 ---- n posts
 posts      1 ---- n comments
 comments   1 ---- n comments (parent_id)
+friend_links            (独立站点资源)
 ```
 
 标签是 `posts.tags TEXT[]`，不是独立实体。
@@ -235,7 +236,15 @@ WHERE id = $1;
 - uploads/media：第一版仅签发 S3 预签名地址，不做媒体管理。
 - sessions/refresh_tokens：第一版使用 24 小时 JWT，不维护服务端会话或 refresh token。
 
-## 6. 当前索引与查询策略
+## 6. M8 友情链接与评论安全迁移
+
+`000003_rss_links_security.sql` 新增独立的 `friend_links` 表：UUID 主键，`name`、`description`、`url`、`favicon_url` 及创建/更新时间。`friend_links_name_idx (LOWER(name), id)` 支持稳定名称排序。
+
+评论 nickname/content 增加禁止 `<`/`>` 的 `CHECK ... NOT VALID`。约束会立即阻止新写入和更新，但不会因升级前历史脏数据导致迁移失败；DTO/RSS 输出层负责中和旧数据。清理旧数据后可在维护窗口执行 `VALIDATE CONSTRAINT`。
+
+RSS 不单独建表，只查询已有 published posts 与 visible comments。`comments_visible_created_idx` 支持最新 50 条评论订阅。
+
+## 7. 当前索引与查询策略
 
 `000001_init.sql` 是可追溯的初始基线；`000002_optimize_indexes.sql` 替换了不匹配实际排序和筛选方式的索引。当前新增或调整的关键索引为：
 
@@ -245,6 +254,8 @@ WHERE id = $1;
 - `posts_category_public_idx (category_id, published_at DESC, id DESC)`：按分类读取公开文章并直接满足稳定排序。
 - `comments_post_created_idx (post_id, created_at, id)`：单篇文章评论树的一次性读取。
 - `comments_created_idx (created_at DESC, id DESC)`：后台评论 keyset 列表。
+- `comments_visible_created_idx (created_at DESC, id DESC) WHERE status = 'visible'`：评论 RSS。
+- `friend_links_name_idx (LOWER(name), id)`：友情链接稳定排序。
 
 公开文章列表和后台文章列表不读取 `content`；只有详情接口读取 Markdown + LaTeX 正文。除登录查询外，用户查询不读取 `password_hash`。全部外部输入通过 pgx 参数传入，动态查询只拼接服务端固定 SQL 片段和占位符。
 

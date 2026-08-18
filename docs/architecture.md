@@ -11,6 +11,8 @@ SimpleBlog 是一个单站点、多用户的博客后端 API。项目保持小�
 
 正文以 Markdown 原文保存，LaTeX 行内公式与公式块是正文的一部分，由前端负责渲染。图片通过 S3 兼容服务直传，不经过 Go 服务。
 
+文章正文允许站点作者写入可执行 HTML，这是受信任内容能力；匿名评论严格作为纯文本。RSS 使用标准库生成 XML，友情链接存入 PostgreSQL 并仅允许 admin 维护。
+
 相关文档：
 
 - [配置说明](configuration.md)
@@ -19,6 +21,7 @@ SimpleBlog 是一个单站点、多用户的博客后端 API。项目保持小�
 - [权限设计](permissions.md)
 - [API 设计](api.md)
 - [测试与验收](testing.md)
+- [安全边界](security.md)
 - [已知边界](limitations.md)
 
 ## 2. 总体结构
@@ -71,6 +74,8 @@ internal/model/
   category.go
   post.go
   comment.go
+  link.go
+  feed.go
 
 internal/dto/
   auth.go
@@ -80,6 +85,8 @@ internal/dto/
   public.go
   comment.go
   upload.go
+  link.go
+  rss.go
 
 internal/repository/
   user.go
@@ -88,6 +95,8 @@ internal/repository/
   comment.go
   errors.go
   slow_query.go
+  link.go
+  feed.go
 
 internal/service/
   auth.go
@@ -97,6 +106,8 @@ internal/service/
   public.go
   comment.go
   upload.go
+  link.go
+  rss.go
   turnstile.go
   errors.go
   pagination.go
@@ -111,6 +122,8 @@ internal/handler/
   upload.go
   service.go
   json.go
+  link.go
+  rss.go
 
 internal/middleware/
   auth.go
@@ -125,6 +138,7 @@ internal/router/
   router.go
   admin.go
   service.go
+  rss.go
 
 internal/response/
   response.go
@@ -139,6 +153,7 @@ internal/utils/
 migrations/
   000001_init.sql
   000002_optimize_indexes.sql
+  000003_rss_links_security.sql
 ```
 
 M1 已将原有 `Admin` 模型、`AdminHandler` 和 `AuthRepository` 统一改为 `User`、`AuthHandler`/`UserHandler` 和 `UserRepository`。认证查询复用 `UserRepository.GetByUsername`，没有创建重复的数据访问实现。
@@ -217,6 +232,12 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 
 S3 运行配置为 `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`、`S3_USE_SSL` 和 `S3_PUBLIC_BASE_URL`。生产环境拒绝默认 MinIO 凭据；公开地址由 `S3_PUBLIC_BASE_URL` 与服务端 key 安全拼接。
 
+### 4.5 RSS 与友情链接
+
+FeedRepository 只读取 RSS 所需最小投影，不复用文章详情或完整评论树查询。RSSHandler 先在内存中完成 XML 编码再写响应，避免部分响应后才发现编码错误。RSS 是统一 JSON 响应协议的标准兼容例外。
+
+友情链接延续 model → repository → service → handler → router 分层。公开 `/links` 只读，`/admin/links` CRUD 同时受 admin 中间件和 service 权限判断保护。
+
 ## 5. 横切能力
 
 - 配置：生产必需配置不得使用可运行的默认 secret。
@@ -224,7 +245,8 @@ S3 运行配置为 `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`�
 - HTTP：配置读取、写入、空闲超时与优雅关闭。
 - 输入：限制 body 大小、文章正文大小、标签数量、评论长度和图片大小。
 - 日志：记录 request ID、当前用户 ID、业务 code、耗时和内部错误；不得记录密码、JWT、评论邮箱或 S3 签名。
-- 响应：所有应用层业务结果返回 HTTP 200，真实结果由 JSON `code` 表示，详见 API 文档。
+- 响应：JSON 业务结果返回 HTTP 200，真实结果由 `code` 表示；RSS 返回原始 XML 并在失败时使用真实 5xx。
+- 内容安全：匿名评论在写入边界强制纯文本，输出边界兼容处理旧数据；文章原生 HTML 是明确的受信任边界，不在后端清洗。
 - 滥用防护：登录按单实例客户端 IP 固定窗口限流；可信代理头必须由 `TRUST_PROXY_HEADERS` 显式开启。
 - 数据访问：公开与后台列表使用 keyset pagination；查询按用途最小化投影，慢查询只记录 SQL 指纹而不记录文本和参数。
 - PostgreSQL：索引、执行计划、锁竞争与代表性数据验证见 [PostgreSQL 优化记录](postgresql-optimization.md)。

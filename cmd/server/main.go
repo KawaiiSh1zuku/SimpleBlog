@@ -64,6 +64,8 @@ func run(ctx context.Context) error {
 	categoryRepository := repository.NewCategoryRepository(pool)
 	postRepository := repository.NewPostRepository(pool)
 	commentRepository := repository.NewCommentRepository(pool)
+	linkRepository := repository.NewLinkRepository(pool)
+	feedRepository := repository.NewFeedRepository(pool)
 	uploadSigner, err := storage.NewS3Signer(cfg.S3)
 	if err != nil {
 		return err
@@ -74,6 +76,8 @@ func run(ctx context.Context) error {
 	postService := service.NewPostService(postRepository)
 	publicService := service.NewPublicService(postRepository, categoryRepository)
 	commentService := service.NewCommentService(commentRepository)
+	linkService := service.NewLinkService(linkRepository)
+	rssService := service.NewRSSService(feedRepository, service.RSSSite{Name: cfg.Site.Name, Description: cfg.Site.Description, BaseURL: cfg.Site.BaseURL})
 	uploadService := service.NewUploadService(uploadSigner, cfg.S3.PublicBaseURL)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -82,15 +86,18 @@ func run(ctx context.Context) error {
 	publicHandler := handler.NewPublicHandler(publicService)
 	commentHandler := handler.NewCommentHandler(commentService, cfg.Gravatar.BaseURL)
 	uploadHandler := handler.NewUploadHandler(uploadService)
+	linkHandler := handler.NewLinkHandler(linkService)
+	rssHandler := handler.NewRSSHandler(rssService)
 
 	turnstileService := service.NewTurnstileService(cfg.Turnstile.Secret)
 	serviceHandler := handler.NewServiceHandler()
 
 	serviceRoutes := router.ServiceRouter(serviceHandler, turnstileService)
 	authRoutes := router.AuthRouter(authHandler, tokenAuth, userRepository)
-	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, commentHandler, uploadHandler, tokenAuth, userRepository)
-	publicRoutes := router.PublicRouter(publicHandler, commentHandler, turnstileService)
-	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, publicRoutes, cfg.Server.TrustProxyHeaders)
+	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, commentHandler, uploadHandler, linkHandler, tokenAuth, userRepository)
+	rssRoutes := router.RSSRouter(rssHandler)
+	publicRoutes := router.PublicRouter(publicHandler, commentHandler, linkHandler, turnstileService)
+	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, rssRoutes, publicRoutes, cfg.Server.TrustProxyHeaders)
 
 	server := newHTTPServer(cfg.Server.Address(), rootRouter)
 	slog.Info("starting server", "address", server.Addr)

@@ -40,7 +40,7 @@ func TestUploadPresignRouteAllowsContributorAndRequiresAuthentication(t *testing
 	}
 	signer := &routeUploadSigner{}
 	uploadHandler := handler.NewUploadHandler(service.NewUploadService(signer, "https://cdn.example.com"))
-	r := AdminRouter(nil, nil, nil, nil, uploadHandler, tokenAuth, users)
+	r := AdminRouter(nil, nil, nil, nil, uploadHandler, nil, tokenAuth, users)
 
 	body := []byte(`{"filename":"image.png","content_type":"image/png","size":128}`)
 	recorder := httptest.NewRecorder()

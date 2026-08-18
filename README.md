@@ -2,7 +2,7 @@
 
 SimpleBlog 是一个小而精的单站点、多用户博客后端，使用 Go、Chi 和 PostgreSQL。项目不包含前端、不使用 ORM，也不引入 Redis、消息队列或媒体代理服务。
 
-当前已完成 M0–M6：
+当前已完成 M0–M8：
 
 - `admin` / `contributor` 用户、JWT 登录和权限控制。
 - 分类、Markdown + LaTeX 文章、`TEXT[]` 标签及草稿/发布/撤回流程。
@@ -11,6 +11,8 @@ SimpleBlog 是一个小而精的单站点、多用户博客后端，使用 Go、
 - 根据评论邮箱生成可配置镜像源的 Gravatar URL；公开响应不返回邮箱。
 - S3 兼容 POST policy 直传，图片字节不经过 API。
 - 请求限制、登录限流、日志脱敏、慢查询追踪和 PostgreSQL 查询优化。
+- 文章/评论 RSS 2.0、公开友情链接与管理员维护接口。
+- 评论纯文本 XSS 防线和参数化 SQL 注入回归验证；文章可信 HTML 保持原样。
 
 ## 快速开始
 
@@ -38,7 +40,7 @@ go run ./cmd/server
 Invoke-RestMethod http://localhost:8080/service/ping
 ```
 
-应用处理的业务结果始终使用 HTTP 200；客户端必须读取响应体 `code`：
+JSON 业务结果始终使用 HTTP 200；客户端必须读取响应体 `code`（RSS 返回标准 XML，是显式例外）：
 
 ```json
 {"code": 200, "msg": "success", "data": {}}
@@ -54,6 +56,7 @@ Invoke-RestMethod http://localhost:8080/service/ping
 - [权限模型](docs/permissions.md)
 - [测试与验收](docs/testing.md)
 - [PostgreSQL 优化记录](docs/postgresql-optimization.md)
+- [安全边界](docs/security.md)
 - [已知边界](docs/limitations.md)
 - [Milestone 状态](docs/milestones.md)
 

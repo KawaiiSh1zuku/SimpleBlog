@@ -72,4 +72,6 @@ go test ./internal/storage -run TestS3SignerRealUploadAndPublicRead -count=1 -v
 - hidden/deleted 父评论保留回复树，deleted 固定显示“该评论已被删除”。
 - 图片 POST policy 限制 MIME、精确声明大小、对象 key 和 10 分钟有效期。
 - 慢查询与错误日志不包含 SQL 参数、密码、JWT、邮箱或 S3 签名。
-
+- 评论昵称/正文拒绝 HTML 尖括号和危险控制字符，旧数据的公开 JSON/RSS 输出不含可执行 HTML 分隔符。
+- RSS 返回可解析的 RSS 2.0 XML，文章只含 published、评论只含 visible + published post，失败使用真实 HTTP 500。
+- SQL 注入载荷以参数写入友情链接后原样读回，表结构保持存在；RSS 查询命中部分索引。

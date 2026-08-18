@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 type Config struct {
@@ -19,6 +20,7 @@ type Config struct {
 	Turnstile TurnstileConfig
 	S3        S3Config
 	Gravatar  GravatarConfig
+	Site      SiteConfig
 }
 
 type AppConfig struct {
@@ -63,6 +65,12 @@ type S3Config struct {
 
 type GravatarConfig struct {
 	BaseURL string `env:"GRAVATAR_BASE_URL" envDefault:"https://www.gravatar.com/avatar"`
+}
+
+type SiteConfig struct {
+	Name        string `env:"SITE_NAME" envDefault:"SimpleBlog"`
+	Description string `env:"SITE_DESCRIPTION" envDefault:"A SimpleBlog site"`
+	BaseURL     string `env:"SITE_BASE_URL" envDefault:"http://localhost:3000"`
 }
 
 // LoadConfig 加载 .env 文件（若存在）并从环境变量解析配置
@@ -132,6 +140,18 @@ func (c *Config) Validate() error {
 		errs = append(errs, err)
 	}
 	if err := validateHTTPURL("GRAVATAR_BASE_URL", c.Gravatar.BaseURL); err != nil {
+		errs = append(errs, err)
+	}
+	if strings.TrimSpace(c.Site.Name) == "" {
+		errs = append(errs, errors.New("SITE_NAME must not be empty"))
+	}
+	if strings.TrimSpace(c.Site.Description) == "" {
+		errs = append(errs, errors.New("SITE_DESCRIPTION must not be empty"))
+	}
+	if containsControl(c.Site.Name) || containsControl(c.Site.Description) {
+		errs = append(errs, errors.New("SITE_NAME and SITE_DESCRIPTION must not contain control characters"))
+	}
+	if err := validateHTTPURL("SITE_BASE_URL", c.Site.BaseURL); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -206,4 +226,13 @@ func isSSLMode(value string) bool {
 	default:
 		return false
 	}
+}
+
+func containsControl(value string) bool {
+	for _, char := range value {
+		if unicode.IsControl(char) {
+			return true
+		}
+	}
+	return false
 }

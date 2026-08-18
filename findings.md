@@ -227,3 +227,24 @@
 - 慢查询追踪以 `DB_SLOW_QUERY_MS` 配置阈值，日志只写规范化 SQL 的 SHA-256 短指纹、耗时、command tag 和 SQLSTATE；不写 SQL 文本、参数或 PostgreSQL Detail。
 - 初轮 PostgreSQL 18 数据验证覆盖 10k users、1k categories、20k posts、50k comments；八条基础查询均命中指定索引，测试未发现高增长表的可避免顺序扫描。
 - 补充 contributor 评论计划后发现全局时间索引会为 51 条结果扫描约 5,001 条评论并做同数量文章查找；采用物化作者文章集合 + LATERAL 后改为作者/文章评论索引，执行时间由样本 8.520 ms 降至 2.054 ms。
+
+## M8 初始需求与决策点
+
+- 用户要求公开 RSS 路由固定为 `/rss/article` 和 `/rss/comment`，但 feed 的站点绝对 URL、条目数量、评论可见状态仍需确认。
+- RSS 2.0 可直接使用标准库 `encoding/xml`，无需引入第三方依赖；XML 文本必须由编码器转义，不能拼接用户内容。
+- 友情链接字段为名字、简介、链接、favicon 地址；尚未明确是只读配置还是 PostgreSQL 持久化 + admin CRUD。对当前多用户后台，推荐公开 GET + admin CRUD。
+- SQL 注入防护应延续 pgx 参数化值；动态排序/条件只能由服务端固定枚举生成，并加入恶意输入回归测试与源码审计。
+- 后端当前返回 Markdown 原文。JSON 编码不是最终 HTML 安全边界：前端解析 JSON 后仍可把 `<script>`、事件属性或危险 URL 渲染进 DOM。若要后端独立保证 XSS，需要拒绝原生 HTML/危险链接，或改为后端渲染并清洗 HTML。
+- 用户确认文章内可执行 HTML 是预期能力，不能清洗文章正文；XSS 防护范围聚焦匿名评论。推荐把评论定义为纯文本，拒绝 HTML 标记和危险控制字符，JSON/RSS 使用标准编码器转义，并要求前端使用文本节点渲染。
+- 上一轮文档变更在本轮开始前已处于 staged 状态；本轮必须保留该状态且不提交。
+- SQL 源码复核未发现用户值直接拼入语句：动态文章/评论查询只拼接服务端固定子句和由参数数量生成的 `$n` 占位符，实际值都经 pgx args 传入。M8 新 SQL 必须保持此模式并增加恶意 name/url/filter 输入测试。
+- 当前评论 Create 接受任意 HTML 字符串并原样存储，公开/后台 DTO 也原样返回；`encoding/json` 会保护 JSON 文本本身，但前端解析后若使用 `innerHTML` 仍可执行。评论纯文本校验应在 service 写入边界完成，历史数据还需在 DTO/RSS 输出边界防御。
+- M8 可同时修复已记录的评论首尾空白长度偏差：将 content 规范化一次后校验并存储，避免校验值与存储值不同。
+- 标准 RSS 响应必须使用 XML 而非统一 JSON envelope；为兼容订阅器，推荐把 RSS 端点作为现有“HTTP 200 + body code”协议的显式例外，并在内部错误时返回真实 5xx。
+- 用户已批准推荐方案。RSS 使用 `SITE_NAME`、`SITE_DESCRIPTION`、`SITE_BASE_URL`，文章链接为 `{base}/posts/{slug}`，最新 50 条；评论仅 visible 且文章 published。
+- 友情链接采用 `friend_links` 表，公开 `GET /links`，仅 admin 可在 `/admin/links` CRUD；不增加 sort_order，按名称与 ID 稳定排序。
+- 评论昵称和正文按纯文本处理；新增输入拒绝 `<`/`>` 和危险控制字符，输出层还要处理迁移前历史脏数据。文章正文与摘要不做 HTML 清洗。
+- M8 已按技术分层加入 `friend_links`、RSS feed 投影及独立 repository/service/handler/router；没有新增第三方依赖，RSS 由标准库 `encoding/xml` 编码。
+- 新评论会统一换行、trim 后保存，并拒绝尖括号与危险控制字符；DTO/RSS 对迁移前旧数据把尖括号替换为全角字符并剔除控制字符，文章详情正文不受影响。
+- 真实 PostgreSQL 注入测试将 `x'); DROP TABLE friend_links; --` 作为参数写入并原样读回，`friend_links` 表保持存在；新增 SQL 均使用 pgx 占位参数。
+- 50k comments 的 RSS 查询命中 `comments_visible_created_idx`，本次 PostgreSQL 18 执行时间约 0.39 ms；这是计划形状证据而非生产 SLA。

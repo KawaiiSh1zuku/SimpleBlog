@@ -25,7 +25,7 @@ func TestProxyHeadersAreOnlyTrustedWhenConfigured(t *testing.T) {
 		{name: "trusted proxy", trustProxy: true, want: "203.0.113.7"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			r := New(newRouter(), newRouter(), newRouter(), publicRoutes, test.trustProxy)
+			r := New(newRouter(), newRouter(), newRouter(), newRouter(), publicRoutes, test.trustProxy)
 			request := httptest.NewRequest(http.MethodGet, "/ip", nil)
 			request.RemoteAddr = "198.51.100.8:1234"
 			request.Header.Set("X-Real-IP", "203.0.113.7")
@@ -44,7 +44,7 @@ func TestFallbackResponsesUseHTTP200AndBusinessCode(t *testing.T) {
 		response.Success(w, "ok")
 	})
 	adminRoutes := newRouter()
-	r := New(serviceRoutes, newRouter(), adminRoutes, newRouter(), true)
+	r := New(serviceRoutes, newRouter(), adminRoutes, newRouter(), newRouter(), true)
 
 	tests := []struct {
 		name     string
@@ -81,7 +81,7 @@ func TestRecovererUsesUnifiedResponse(t *testing.T) {
 	serviceRoutes.Get("/panic", func(http.ResponseWriter, *http.Request) {
 		panic("test panic")
 	})
-	r := New(serviceRoutes, chi.NewRouter(), chi.NewRouter(), chi.NewRouter(), true)
+	r := New(serviceRoutes, chi.NewRouter(), chi.NewRouter(), chi.NewRouter(), chi.NewRouter(), true)
 	recorder := httptest.NewRecorder()
 
 	r.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/service/panic", nil))

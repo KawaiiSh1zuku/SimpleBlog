@@ -50,3 +50,11 @@ func TestGravatarURLNormalizesEmailAndMirror(t *testing.T) {
 		t.Fatalf("gravatarURL() = %q, want %q", got, want)
 	}
 }
+
+func TestCommentResponsesNeutralizeLegacyHTMLDelimiters(t *testing.T) {
+	comment := &model.Comment{ID: uuid.New(), Nickname: "<b>name</b>", Content: "<script>alert(1)</script>\x00", Status: model.CommentStatusVisible}
+	response := NewPublicCommentResponse(comment, "https://avatar.example/avatar")
+	if strings.ContainsAny(response.Nickname+response.Content, "<>") || strings.ContainsRune(response.Content, '\x00') {
+		t.Fatalf("legacy comment was not neutralized: %+v", response)
+	}
+}

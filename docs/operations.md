@@ -69,7 +69,7 @@ GET /service/test_turnstile
 
 生产环境建议由反向代理终止 TLS，再转发到 SimpleBlog。默认保持 `TRUST_PROXY_HEADERS=false`；只有在代理会删除客户端原始 `X-Real-IP` 并写入可信值时才开启。
 
-应用始终把业务响应写成 HTTP 200，因此代理监控不能只按 HTTP status 统计业务错误；应解析 body `code` 或使用结构化访问日志中的 `business_code`。
+JSON 业务响应始终写成 HTTP 200，因此代理监控应解析 body `code` 或使用结构化访问日志中的 `business_code`。RSS 端点是例外，失败会返回真实 HTTP 5xx，可按标准状态监控。
 
 ## 7. S3 直传检查
 
@@ -88,5 +88,7 @@ GET /service/test_turnstile
 - migration 已按顺序执行并完成备份。
 - 首个 admin 已创建，`ADMIN_PASSWORD` 已从进程环境移除。
 - Turnstile、S3 CORS、公开图片 URL 和 Gravatar 镜像已验证。
+- `SITE_BASE_URL` 已指向生产前端 HTTPS 域名，RSS 中的文章/评论链接可访问。
 - 反向代理覆盖 `X-Real-IP` 后才开启可信代理配置。
 - `/service/ping`、登录、文章读取、评论提交和 S3 直传链路均完成烟雾测试。
+- `/rss/article`、`/rss/comment` 可被 RSS 阅读器解析，`/links` 只返回预期 HTTP(S) 地址。

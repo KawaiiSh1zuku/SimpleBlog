@@ -12,6 +12,9 @@
 |---|---|---|
 | `LOG_LEVEL` | `INFO` | `DEBUG`、`INFO`、`WARN` 或 `ERROR` |
 | `DEBUG` | `false` | 为 `true` 时允许开发默认密钥；不改变路由或日志结构 |
+| `SITE_NAME` | `SimpleBlog` | RSS 使用的站点名称，不能为空 |
+| `SITE_DESCRIPTION` | `A SimpleBlog site` | RSS channel 描述，不能为空 |
+| `SITE_BASE_URL` | `http://localhost:3000` | 公开前端绝对基址，用于 RSS 链接，不允许 query/fragment |
 | `SERVER_HOST` | `localhost` | HTTP 监听地址；容器或远程部署通常使用 `0.0.0.0` |
 | `SERVER_PORT` | `8080` | 1–65535 |
 | `TRUST_PROXY_HEADERS` | `false` | 是否信任反向代理写入的 `X-Real-IP` |
@@ -42,7 +45,9 @@
 
 慢查询日志只记录 request ID、SQL 指纹、耗时、命令标签和 SQLSTATE，不记录 SQL 文本、参数或 PostgreSQL Detail。
 
-## 4. S3 与 Gravatar
+## 4. 站点 URL、S3 与 Gravatar
+
+`SITE_BASE_URL` 指向读者访问文章的前端站点，不是 API 地址。RSS 会生成 `{SITE_BASE_URL}/posts/{slug}`；部署前必须改成生产 HTTPS 域名。
 
 S3 bucket 必须预先创建，并允许浏览器站点源向签名地址发送 POST。若图片需要直接展示，还要为对象配置公开读取或通过 CDN 提供读取能力。`S3_PUBLIC_BASE_URL` 只用于生成最终图片地址，不负责修改 bucket 权限。
 

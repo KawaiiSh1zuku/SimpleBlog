@@ -9,6 +9,7 @@ import (
 func PublicRouter(
 	publicHandler *handler.PublicHandler,
 	commentHandler *handler.CommentHandler,
+	linkHandler *handler.LinkHandler,
 	turnstile appmiddleware.TurnstileVerifier,
 ) chi.Router {
 	r := newRouter()
@@ -18,5 +19,6 @@ func PublicRouter(
 	r.Get("/posts/{slug}", publicHandler.GetPost)
 	r.Get("/categories", publicHandler.ListCategories)
 	r.Get("/tags", publicHandler.ListTags)
+	r.Get("/links", linkHandler.ListPublic)
 	return r
 }

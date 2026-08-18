@@ -54,7 +54,8 @@ func TestM1RoutesHaveNoAPIPrefixAndUseDatabaseRole(t *testing.T) {
 	r := New(
 		chi.NewRouter(),
 		AuthRouter(authHandler, tokenAuth, store),
-		AdminRouter(userHandler, nil, nil, nil, nil, tokenAuth, store),
+		AdminRouter(userHandler, nil, nil, nil, nil, nil, tokenAuth, store),
+		chi.NewRouter(),
 		chi.NewRouter(),
 		true,
 	)

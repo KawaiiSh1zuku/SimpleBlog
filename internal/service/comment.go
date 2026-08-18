@@ -55,10 +55,10 @@ func (s *CommentService) Create(ctx context.Context, postSlug string, input Crea
 	if !ok {
 		return nil, ErrInvalidInput
 	}
-	nickname := strings.TrimSpace(input.Nickname)
+	nickname, nicknameOK := normalizePlainText(input.Nickname, 1, 80, false)
 	email := strings.TrimSpace(input.Email)
-	if !validText(nickname, 1, 80) || !validEmail(email) ||
-		!validText(strings.TrimSpace(input.Content), 1, MaxCommentContentRunes) {
+	content, contentOK := normalizePlainText(input.Content, 1, MaxCommentContentRunes, true)
+	if !nicknameOK || !validEmail(email) || !contentOK {
 		return nil, ErrInvalidInput
 	}
 	if input.ParentID != nil && *input.ParentID == uuid.Nil {
@@ -66,7 +66,7 @@ func (s *CommentService) Create(ctx context.Context, postSlug string, input Crea
 	}
 	comment := &model.Comment{
 		ID: uuid.New(), ParentID: input.ParentID, Nickname: nickname,
-		Email: email, Content: input.Content, Status: model.CommentStatusVisible,
+		Email: email, Content: content, Status: model.CommentStatusVisible,
 	}
 	created, err := s.Comments.CreateForPublishedPost(ctx, postSlug, comment)
 	return created, mapCreateCommentError(err)

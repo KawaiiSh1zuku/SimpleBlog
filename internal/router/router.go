@@ -9,7 +9,7 @@ import (
 )
 
 // New 创建应用根路由并安装所有全局中间件和兜底响应。
-func New(serviceRoutes, authRoutes, adminRoutes, publicRoutes http.Handler, trustProxyHeaders bool) chi.Router {
+func New(serviceRoutes, authRoutes, adminRoutes, rssRoutes, publicRoutes http.Handler, trustProxyHeaders bool) chi.Router {
 	r := newRouter()
 	r.Use(chimiddleware.RequestID)
 	if trustProxyHeaders {
@@ -20,10 +20,12 @@ func New(serviceRoutes, authRoutes, adminRoutes, publicRoutes http.Handler, trus
 	r.Use(appmiddleware.AccessLog)
 	r.Use(appmiddleware.LimitRequestBody(appmiddleware.MaxRequestBodyBytes))
 	r.Use(appmiddleware.Recoverer)
+	r.Use(appmiddleware.SecurityHeaders)
 
 	r.Mount("/service", serviceRoutes)
 	r.Mount("/auth", authRoutes)
 	r.Mount("/admin", adminRoutes)
+	r.Mount("/rss", rssRoutes)
 	r.Mount("/", publicRoutes)
 
 	return r

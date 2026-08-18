@@ -89,6 +89,29 @@ func TestCommentServiceCreatesValidatedAnonymousComment(t *testing.T) {
 	}
 }
 
+func TestCommentServiceTreatsCommentsAsNormalizedPlainText(t *testing.T) {
+	store := &commentStoreStub{}
+	comments := NewCommentService(store)
+	created, err := comments.Create(context.Background(), "post", CreateCommentInput{
+		Nickname: " Visitor ", Email: "visitor@example.com", Content: "  first\r\nsecond  ",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if created.Content != "first\nsecond" {
+		t.Fatalf("normalized content = %q", created.Content)
+	}
+	for _, input := range []CreateCommentInput{
+		{Nickname: "<b>Visitor</b>", Email: "visitor@example.com", Content: "body"},
+		{Nickname: "Visitor", Email: "visitor@example.com", Content: "<img src=x onerror=alert(1)>"},
+		{Nickname: "Visitor\x00", Email: "visitor@example.com", Content: "body"},
+	} {
+		if _, err := comments.Create(context.Background(), "post", input); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("Create(%+v) error = %v, want invalid input", input, err)
+		}
+	}
+}
+
 func TestCommentServiceMapsPostAndParentFailures(t *testing.T) {
 	store := &commentStoreStub{createErr: pgx.ErrNoRows}
 	service := NewCommentService(store)
