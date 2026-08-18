@@ -33,6 +33,7 @@ internal/handler/              # HTTP 参数解析与响应
 internal/middleware/           # 认证、角色、Turnstile 等中间件
 internal/router/               # 公开、认证和后台路由
 internal/response/             # 统一 HTTP 200 + body code 响应
+internal/storage/              # S3 兼容签名适配
 ```
 
 依赖方向固定为：
@@ -101,6 +102,9 @@ internal/router/
   auth.go
   admin.go
   service.go
+
+internal/storage/
+  s3.go
 ```
 
 M1 已将原有 `Admin` 模型、`AdminHandler` 和 `AuthRepository` 统一改为 `User`、`AuthHandler`/`UserHandler` 和 `UserRepository`。认证查询复用 `UserRepository.GetByUsername`，没有创建重复的数据访问实现。
@@ -169,13 +173,15 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 
 1. 已登录用户请求预签名上传地址。
 2. UploadService 校验文件类型、大小并生成 object key。
-3. API 返回 upload URL、必要 headers 和 public URL。
-4. 前端直接把图片上传到 S3。
+3. API 返回 upload URL、POST form fields、过期时间和 public URL。
+4. 前端以 multipart/form-data 直接把图片 POST 到 S3。
 5. 前端把 public URL 插入 Markdown 正文。
 
 第一版不建立 uploads 表。对象路径由服务端生成，客户端不能指定 bucket 或任意 key。用于正文的 Bucket 应提供公开或 CDN 读取地址。
 
-首版只允许 JPEG、PNG、WebP、GIF，单文件最大 10 MiB。
+首版只允许 JPEG、PNG、WebP、GIF，单文件最大 10 MiB。实现使用 S3 POST policy，而不是预签名 PUT：policy 在对象存储侧约束精确 MIME、客户端声明的精确字节数、bucket、key 和 10 分钟有效期，Go 服务不接收文件内容。
+
+S3 运行配置为 `S3_ENDPOINT`、`S3_REGION`、`S3_BUCKET`、`S3_ACCESS_KEY`、`S3_SECRET_KEY`、`S3_USE_SSL` 和 `S3_PUBLIC_BASE_URL`。生产环境拒绝默认 MinIO 凭据；公开地址由 `S3_PUBLIC_BASE_URL` 与服务端 key 安全拼接。
 
 ## 5. 横切能力
 

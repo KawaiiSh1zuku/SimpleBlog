@@ -17,6 +17,7 @@ type Config struct {
 	Database  DatabaseConfig
 	JWT       JWTConfig
 	Turnstile TurnstileConfig
+	S3        S3Config
 }
 
 type AppConfig struct {
@@ -45,6 +46,16 @@ type JWTConfig struct {
 type TurnstileConfig struct {
 	SiteKey string `env:"TURNSTILE_SITEKEY" envDefault:"secret"`
 	Secret  string `env:"TURNSTILE_SECRET" envDefault:"secret"`
+}
+
+type S3Config struct {
+	Endpoint      string `env:"S3_ENDPOINT" envDefault:"localhost:9000"`
+	Region        string `env:"S3_REGION" envDefault:"us-east-1"`
+	Bucket        string `env:"S3_BUCKET" envDefault:"simpleblog"`
+	AccessKey     string `env:"S3_ACCESS_KEY" envDefault:"minioadmin"`
+	SecretKey     string `env:"S3_SECRET_KEY" envDefault:"minioadmin"`
+	UseSSL        bool   `env:"S3_USE_SSL" envDefault:"false"`
+	PublicBaseURL string `env:"S3_PUBLIC_BASE_URL" envDefault:"http://localhost:9000/simpleblog"`
 }
 
 // LoadConfig 加载 .env 文件（若存在）并从环境变量解析配置
@@ -92,6 +103,24 @@ func (c *Config) Validate() error {
 	if !isSSLMode(c.Database.SSLMode) {
 		errs = append(errs, fmt.Errorf("invalid DB_SSLMODE %q", c.Database.SSLMode))
 	}
+	if strings.TrimSpace(c.S3.Endpoint) == "" {
+		errs = append(errs, errors.New("S3_ENDPOINT must not be empty"))
+	}
+	if strings.TrimSpace(c.S3.Region) == "" {
+		errs = append(errs, errors.New("S3_REGION must not be empty"))
+	}
+	if strings.TrimSpace(c.S3.Bucket) == "" {
+		errs = append(errs, errors.New("S3_BUCKET must not be empty"))
+	}
+	if strings.TrimSpace(c.S3.AccessKey) == "" {
+		errs = append(errs, errors.New("S3_ACCESS_KEY must not be empty"))
+	}
+	if c.S3.SecretKey == "" {
+		errs = append(errs, errors.New("S3_SECRET_KEY must not be empty"))
+	}
+	if err := validateHTTPURL("S3_PUBLIC_BASE_URL", c.S3.PublicBaseURL); err != nil {
+		errs = append(errs, err)
+	}
 
 	if c.App.Debug {
 		return errors.Join(errs...)
@@ -105,6 +134,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Turnstile.Secret == "" || c.Turnstile.Secret == "secret" {
 		errs = append(errs, errors.New("TURNSTILE_SECRET must be configured in production"))
+	}
+	if c.S3.AccessKey == "minioadmin" || c.S3.SecretKey == "minioadmin" {
+		errs = append(errs, errors.New("S3 credentials must not use the production defaults"))
 	}
 
 	return errors.Join(errs...)
@@ -133,6 +165,14 @@ func validatePort(name string, value string) error {
 	port, err := strconv.Atoi(value)
 	if err != nil || port < 1 || port > 65535 {
 		return fmt.Errorf("%s must be an integer between 1 and 65535", name)
+	}
+	return nil
+}
+
+func validateHTTPURL(name, value string) error {
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("%s must be an absolute HTTP(S) URL without query or fragment", name)
 	}
 	return nil
 }

@@ -12,6 +12,8 @@ func TestConfigValidateAllowsDevelopmentDefaults(t *testing.T) {
 	cfg.Database.Password = "password"
 	cfg.JWT.Secret = "secret"
 	cfg.Turnstile.Secret = "secret"
+	cfg.S3.AccessKey = "minioadmin"
+	cfg.S3.SecretKey = "minioadmin"
 
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() returned an error in debug mode: %v", err)
@@ -23,6 +25,8 @@ func TestConfigValidateRejectsProductionDefaults(t *testing.T) {
 	cfg.Database.Password = "password"
 	cfg.JWT.Secret = "secret"
 	cfg.Turnstile.Secret = "secret"
+	cfg.S3.AccessKey = "minioadmin"
+	cfg.S3.SecretKey = "minioadmin"
 
 	err := cfg.Validate()
 	if err == nil {
@@ -30,10 +34,20 @@ func TestConfigValidateRejectsProductionDefaults(t *testing.T) {
 	}
 
 	message := err.Error()
-	for _, expected := range []string{"DB_PASSWORD", "JWT_SECRET", "TURNSTILE_SECRET"} {
+	for _, expected := range []string{"DB_PASSWORD", "JWT_SECRET", "TURNSTILE_SECRET", "S3 credentials"} {
 		if !strings.Contains(message, expected) {
 			t.Errorf("Validate() error %q does not mention %s", message, expected)
 		}
+	}
+}
+
+func TestConfigValidateRejectsInvalidS3PublicURL(t *testing.T) {
+	cfg := validConfig()
+	cfg.S3.PublicBaseURL = "javascript:alert(1)"
+
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "S3_PUBLIC_BASE_URL") {
+		t.Fatalf("Validate() did not reject invalid S3 public URL: %v", err)
 	}
 }
 
@@ -94,5 +108,10 @@ func validConfig() *Config {
 		},
 		JWT:       JWTConfig{Secret: strings.Repeat("j", 32)},
 		Turnstile: TurnstileConfig{Secret: "turnstile-secret"},
+		S3: S3Config{
+			Endpoint: "s3.example.com", Region: "us-east-1", Bucket: "simpleblog",
+			AccessKey: "access-key", SecretKey: "secret-key", UseSSL: true,
+			PublicBaseURL: "https://cdn.example.com",
+		},
 	}
 }

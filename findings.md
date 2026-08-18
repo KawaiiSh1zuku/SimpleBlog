@@ -188,3 +188,11 @@
 - 删除评论只写 deleted 墓碑，固定昵称“该评论已被删除”，同时清空 email/content；hidden 可恢复，deleted 不可恢复，hidden/deleted 都允许继续被回复。
 - 评论树通过两遍迭代映射组装，不按层级递归查询数据库，因此回复深度不产生 N+1；前端仍可采用不随深度缩进的 B 站式展示。
 - Turnstile 中间件改为小接口以便测试，并只传不含端口的远端 IP；HTTP client 增加 5 秒超时。
+
+## M5 实现决策
+
+- 预签名 PUT 不能可靠地在对象存储侧强制实际文件大小；M5 改用 S3 POST policy，以 `content-length-range` 的相同上下界校验声明大小，并精确约束 Content-Type。
+- object key 固定为 `posts/{userID}/{uuid}.{server-extension}`；原始 filename 不进入路径，扩展名由 MIME 映射，避免客户端控制 bucket、目录或可执行后缀。
+- 签名有效期固定 10 分钟；admin/contributor 都可申请，UploadService 仍执行角色防御，不只依赖路由中间件。
+- Blog API 只返回 upload URL、必须原样提交的 form fields 和公开 URL，不代理文件字节，也不建立 uploads 表。
+- MinIO Go v7 仅封装 S3 兼容签名；真实验证使用临时本地 MinIO，完成 multipart POST 与匿名公开读取后销毁测试 bucket 和临时服务。

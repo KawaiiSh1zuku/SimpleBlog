@@ -13,6 +13,7 @@ func AdminRouter(
 	categoryHandler *handler.CategoryHandler,
 	postHandler *handler.PostHandler,
 	commentHandler *handler.CommentHandler,
+	uploadHandler *handler.UploadHandler,
 	tokenAuth *jwtauth.JWTAuth,
 	users appmiddleware.CurrentUserStore,
 ) chi.Router {
@@ -48,5 +49,6 @@ func AdminRouter(
 	r.Post("/comments/{commentID}/hide", commentHandler.Hide)
 	r.Post("/comments/{commentID}/show", commentHandler.Show)
 	r.Delete("/comments/{commentID}", commentHandler.Delete)
+	r.Post("/uploads/presign", uploadHandler.Presign)
 	return r
 }

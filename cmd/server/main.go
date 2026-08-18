@@ -9,6 +9,7 @@ import (
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/repository"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/router"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
+	"github.com/KawaiiSh1zuku/SimpleBlog/internal/storage"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/utils"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,25 +59,31 @@ func run(ctx context.Context) error {
 	categoryRepository := repository.NewCategoryRepository(pool)
 	postRepository := repository.NewPostRepository(pool)
 	commentRepository := repository.NewCommentRepository(pool)
+	uploadSigner, err := storage.NewS3Signer(cfg.S3)
+	if err != nil {
+		return err
+	}
 	authService := service.NewAuthService(userRepository, tokenAuth)
 	userService := service.NewUserService(userRepository)
 	categoryService := service.NewCategoryService(categoryRepository)
 	postService := service.NewPostService(postRepository)
 	publicService := service.NewPublicService(postRepository, categoryRepository)
 	commentService := service.NewCommentService(commentRepository)
+	uploadService := service.NewUploadService(uploadSigner, cfg.S3.PublicBaseURL)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	postHandler := handler.NewPostHandler(postService)
 	publicHandler := handler.NewPublicHandler(publicService)
 	commentHandler := handler.NewCommentHandler(commentService)
+	uploadHandler := handler.NewUploadHandler(uploadService)
 
 	turnstileService := service.NewTurnstileService(cfg.Turnstile.Secret)
 	serviceHandler := handler.NewServiceHandler()
 
 	serviceRoutes := router.ServiceRouter(serviceHandler, turnstileService)
 	authRoutes := router.AuthRouter(authHandler, tokenAuth, userRepository)
-	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, commentHandler, tokenAuth, userRepository)
+	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, commentHandler, uploadHandler, tokenAuth, userRepository)
 	publicRoutes := router.PublicRouter(publicHandler, commentHandler, turnstileService)
 	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, publicRoutes, cfg.App.Debug)
 

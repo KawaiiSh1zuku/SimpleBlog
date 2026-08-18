@@ -252,23 +252,41 @@ POST /admin/uploads/presign
   "code": 200,
   "msg": "success",
   "data": {
+    "method": "POST",
     "object_key": "posts/user-id/uuid.webp",
     "upload_url": "https://s3.example/...",
-    "headers": {
-      "Content-Type": "image/webp"
+    "fields": {
+      "key": "posts/user-id/uuid.webp",
+      "Content-Type": "image/webp",
+      "policy": "base64-policy",
+      "x-amz-signature": "signature"
     },
-    "public_url": "https://cdn.example/posts/user-id/uuid.webp"
+    "public_url": "https://cdn.example/posts/user-id/uuid.webp",
+    "expires_at": "2026-08-18T12:10:00Z"
   }
 }
 ```
 
-前端直接向 upload_url 上传，文件内容不经过 Blog API。
+请求体固定为：
+
+```json
+{
+  "filename": "diagram.webp",
+  "content_type": "image/webp",
+  "size": 123456
+}
+```
+
+前端必须构造 `multipart/form-data`，先原样加入响应中的全部 `fields`，再以字段名 `file` 加入图片，向 `upload_url` 发起 POST。文件内容不经过 Blog API；上传成功后将 `public_url` 写入 Markdown。
 
 首版上传限制：
 
 - MIME：`image/jpeg`、`image/png`、`image/webp`、`image/gif`。
 - 单文件最大 10 MiB。
 - 服务端生成 object key，不接受客户端提供任意对象路径。
+- policy 同时约束精确 Content-Type 和请求声明的精确字节数，签名 10 分钟后过期。
+- filename 仅作元数据校验，不参与 object key；服务端按 MIME 决定扩展名。
+- admin 与 contributor 均可申请签名，未登录请求返回业务 code 401。
 
 ## 11. 服务端点
 

@@ -67,3 +67,8 @@
 - 评论创建原子限制为已发布文章并由复合外键阻止跨文章回复；公开 SQL 不读取 email，后台按 admin/contributor 所有权过滤。
 - 隐藏可恢复，删除写入不可恢复墓碑并清空个人信息；真实 PostgreSQL 已验证任意层级回复、回复墓碑和子回复保留。
 - M4 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 临时 schema、`go build ./...`、公开邮箱字段扫描与文档链接检查，准备创建独立签名 commit。
+- M4 已创建签名 commit `00eb7fcad6ced25da1b0c4fa2252c53eb8e60f44`，GPG 验证为 Good signature；按用户对 M4/M5 的连续授权进入 M5。
+- M5 采用 S3 POST policy，完成 S3 配置、MinIO 签名适配、UploadService/DTO/handler 与 `/admin/uploads/presign` 路由。
+- 上传策略限制 JPEG/PNG/WebP/GIF、1 到 10 MiB、精确声明字节数、服务端 key 和 10 分钟有效期；图片数据不经过 Go 服务。
+- 单元/路由测试覆盖角色、MIME、大小、客户端文件名隔离和签名 policy；临时真实 MinIO 已验证 multipart POST 上传与匿名公开读取，随后停止并清理。
+- M5 最终通过 `gofmt -d`、`go mod verify`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 回归、`go build ./...`、静态敏感信息扫描与文档链接检查，准备创建独立签名 commit。
