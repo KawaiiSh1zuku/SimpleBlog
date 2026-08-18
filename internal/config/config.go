@@ -6,14 +6,16 @@ import (
 )
 
 type Config struct {
-	App      AppConfig
-	Server   ServerConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
+	App       AppConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	JWT       JWTConfig
+	Turnstile TurnstileConfig
 }
 
 type AppConfig struct {
 	Loglevel string `env:"LOG_LEVEL" envDefault:"INFO"`
+	Debug    bool   `env:"DEBUG" envDefault:"false"`
 }
 
 type ServerConfig struct {
@@ -31,6 +33,11 @@ type DatabaseConfig struct {
 
 type JWTConfig struct {
 	Secret string `env:"JWT_SECRET" envDefault:"secret"`
+}
+
+type TurnstileConfig struct {
+	SiteKey string `env:"TURNSTILE_SITEKEY" envDefault:"secret"`
+	Secret  string `env:"TURNSTILE_SECRET" envDefault:"secret"`
 }
 
 // LoadConfig 加载 .env 文件（若存在）并从环境变量解析配置
