@@ -157,3 +157,12 @@
 - 用户确认这是纯后端项目，所有资源路由不使用 `/api` 前缀；M1 使用 `/auth` 和 `/admin`，后续公开资源直接使用 `/posts`、`/categories` 等顶层路径。
 - `/admin` 是后台命名空间而非 admin 角色命名空间；JWT 与当前用户校验作用于整个路由器，admin 角色守卫只包围 `/admin/users`，为 M2 的 contributor 文章管理保留正确边界。
 - 登录首版不额外引入 Turnstile；匿名评论在 M4 使用现有 Turnstile 能力，登录滥用防护留在 M6 统一处理。
+
+## M2 实现决策
+
+- JWT 默认有效期按用户要求从 2 小时调整为 24 小时；当前用户和角色仍在每个受保护请求中重新加载，因此软删除和降权立即生效。
+- 分类为全局资源，仅 admin CRUD；删除关联文章的分类由 PostgreSQL 外键原子拒绝，repository 将 SQLSTATE 23503 映射为业务冲突。
+- 文章所有权集中在 PostService；author_id 创建后不可修改。contributor 列表在 SQL 中按 author_id 过滤，admin 查看全部。
+- slug 由客户端显式提供并规范为小写 URL-safe 连字符格式，不从中英文标题自动转写，避免额外依赖和隐式规则。
+- 标签继续存入 posts.tags TEXT[]；service 负责 trim、英文小写、去空、去重、保序，最多 10 个且每个最多 30 个 Unicode 字符。
+- 发布/撤回使用独立动作：首次发布写 published_at，撤回保留 published_at，再发布不刷新原发布时间；普通 PATCH 不能修改 status、author_id 或 published_at。

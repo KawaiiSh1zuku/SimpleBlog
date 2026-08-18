@@ -62,7 +62,7 @@ POST /auth/login
 GET  /auth/me
 ```
 
-- login 接收 username 和 password，成功后签发 2 小时有效的 JWT。
+- login 接收 username 和 password，成功后签发 24 小时有效的 JWT。
 - me 返回当前用户的 id、username、nickname、avatar_url 和 role。
 - JWT 使用 `Authorization: Bearer <token>`。
 
@@ -152,11 +152,28 @@ POST   /admin/posts/{id}/publish
 POST   /admin/posts/{id}/withdraw
 ```
 
+创建请求：
+
+```json
+{
+  "category_id": "uuid",
+  "slug": "first-post",
+  "title": "First Post",
+  "summary": "optional summary",
+  "content": "# Markdown\n\n$$E = mc^2$$",
+  "tags": ["go", "latex"]
+}
+```
+
 - contributor 列表只返回自己的文章。
 - contributor 只能操作自己的文章。
 - admin 可以操作全部文章。
 - author_id 和 status 不接受普通 PATCH 直接修改。
 - 发布和撤回使用显式动作路由。
+- 新文章固定为 draft；首次发布写入 published_at，撤回和再次发布保留原发布时间。
+- slug 由客户端提供，服务端转为小写，只允许字母、数字和单连字符，最大 160 字符。
+- tags 会被 trim、转小写、去空、去重并保序，最多 10 个，每项最多 30 个 Unicode 字符。
+- content 原样保存 Markdown 与 LaTeX 文本，不在服务端渲染。
 
 ## 8. 分类后台
 
@@ -169,6 +186,8 @@ GET    /admin/categories/{id}
 PATCH  /admin/categories/{id}
 DELETE /admin/categories/{id}
 ```
+
+分类写入字段为 `name`、`slug` 和可选 `description`。slug 使用与文章相同的格式，最大 100 字符；name 最大 80 个 Unicode 字符。
 
 存在关联文章的分类不能删除，返回业务 code 409。
 

@@ -54,7 +54,7 @@ func TestM1RoutesHaveNoAPIPrefixAndUseDatabaseRole(t *testing.T) {
 	r := New(
 		chi.NewRouter(),
 		AuthRouter(authHandler, tokenAuth, store),
-		AdminRouter(userHandler, tokenAuth, store),
+		AdminRouter(userHandler, nil, nil, tokenAuth, store),
 		true,
 	)
 	// The role claim is deliberately stale. Authorization must use the database role.

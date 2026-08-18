@@ -204,11 +204,6 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, id uuid.UUID, passw
 	return nil
 }
 
-func IsUniqueViolation(err error) bool {
-	var pgError *pgconn.PgError
-	return errors.As(err, &pgError) && pgError.Code == "23505"
-}
-
 type database interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 	QueryRow(context.Context, string, ...any) pgx.Row

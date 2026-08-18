@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const defaultTokenTTL = 2 * time.Hour
+const defaultTokenTTL = 24 * time.Hour
 
 type AuthUserStore interface {
 	GetByUsername(context.Context, string) (*model.User, error)

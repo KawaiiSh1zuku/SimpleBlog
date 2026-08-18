@@ -18,6 +18,13 @@ type authUserStoreStub struct {
 	err  error
 }
 
+func TestAuthServiceDefaultTokenTTL(t *testing.T) {
+	service := NewAuthService(authUserStoreStub{}, jwtauth.New("HS256", []byte("secret"), nil))
+	if service.TokenTTL != 24*time.Hour {
+		t.Fatalf("TokenTTL = %v, want %v", service.TokenTTL, 24*time.Hour)
+	}
+}
+
 func (stub authUserStoreStub) GetByUsername(context.Context, string) (*model.User, error) {
 	return stub.user, stub.err
 }

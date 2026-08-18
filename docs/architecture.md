@@ -112,7 +112,7 @@ M1 已将原有 `Admin` 模型、`AdminHandler` 和 `AuthRepository` 统一改�
 1. handler 解析用户名和密码。
 2. AuthService 通过 UserRepository 查询未删除用户。
 3. 使用 bcrypt 校验密码。
-4. 签发包含 `sub`、`role`、`iat`、`exp` 的短时效 JWT。
+4. 签发包含 `sub`、`role`、`iat`、`exp` 的 24 小时 JWT。
 5. 受保护请求解析 JWT 后再次加载当前用户，确保用户删除或角色变化立即生效。
 
 JWT 中的 role 可以用于前端展示，但 service 以数据库中的当前角色为最终依据。第一版不引入 refresh token。
@@ -137,6 +137,8 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 - 撤回：改回 draft，但保留原 `published_at`。
 - 再发布：默认保留原发布时间。
 - 删除：物理删除文章，并级联物理删除全部评论。
+
+文章 slug 由客户端显式提供，服务端统一转为小写并限制为字母、数字和单连字符；不从标题自动生成拼音或转写。标签在 service 中 trim、转小写、去空、去重并保序，最多 10 个且每项最多 30 个 Unicode 字符。
 
 如果以后要求管理员审核 contributor 文章，应显式增加 `pending_review` 状态，而不是复用 draft。
 

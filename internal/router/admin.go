@@ -10,6 +10,8 @@ import (
 
 func AdminRouter(
 	userHandler *handler.UserHandler,
+	categoryHandler *handler.CategoryHandler,
+	postHandler *handler.PostHandler,
 	tokenAuth *jwtauth.JWTAuth,
 	users appmiddleware.CurrentUserStore,
 ) chi.Router {
@@ -25,6 +27,20 @@ func AdminRouter(
 		admin.Patch("/users/{userID}", userHandler.Update)
 		admin.Delete("/users/{userID}", userHandler.Delete)
 		admin.Put("/users/{userID}/password", userHandler.UpdatePassword)
+
+		admin.Get("/categories", categoryHandler.List)
+		admin.Post("/categories", categoryHandler.Create)
+		admin.Get("/categories/{categoryID}", categoryHandler.Get)
+		admin.Patch("/categories/{categoryID}", categoryHandler.Update)
+		admin.Delete("/categories/{categoryID}", categoryHandler.Delete)
 	})
+
+	r.Get("/posts", postHandler.List)
+	r.Post("/posts", postHandler.Create)
+	r.Get("/posts/{postID}", postHandler.Get)
+	r.Patch("/posts/{postID}", postHandler.Update)
+	r.Delete("/posts/{postID}", postHandler.Delete)
+	r.Post("/posts/{postID}/publish", postHandler.Publish)
+	r.Post("/posts/{postID}/withdraw", postHandler.Withdraw)
 	return r
 }

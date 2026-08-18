@@ -48,3 +48,10 @@
 - 已实现事务级 advisory lock 保护最后一个 admin，并禁止当前 admin 删除自己。
 - 新增认证、用户服务、中间件单元测试及 UserRepository PostgreSQL 集成测试；默认测试与本地 postgres 临时 schema 验证均通过。
 - M1 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、`go build ./...` 与文档链接检查，准备创建独立签名 commit。
+- 用户验收 M1，同意进入 M2，并要求 JWT 有效期从 2 小时调整为 24 小时。
+- M2 开始：分类 CRUD、文章后台 CRUD、Markdown + LaTeX 原文、TEXT[] 标签、作者权限、发布/撤回状态机。
+- M2 首次真实 PostgreSQL 测试确认 `ON DELETE RESTRICT` 返回 SQLSTATE 23001；已扩展引用冲突映射，避免误报 500。
+- 已完成 Category 与 Post 的 model/repository/service/dto/handler，接入 `/admin/categories` 与 `/admin/posts` 路由和 server 组合根。
+- 已完成分类 admin 权限、文章作者所有权、slug 校验、标签规范化、draft/published 发布撤回状态机；普通 PATCH 无法提交 author_id/status。
+- 已新增 M2 service、router、handler 单元测试和 PostgreSQL 内容生命周期集成测试；Markdown + LaTeX 原文与 published_at 保留规则验证通过。
+- M2 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 临时 schema、`go build ./...` 与文档链接检查，准备创建独立签名 commit。

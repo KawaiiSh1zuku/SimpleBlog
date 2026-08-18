@@ -55,17 +55,23 @@ func run(ctx context.Context) error {
 
 	tokenAuth := jwtauth.New("HS256", cfg.JWT.Secret, nil)
 	userRepository := repository.NewUserRepository(pool)
+	categoryRepository := repository.NewCategoryRepository(pool)
+	postRepository := repository.NewPostRepository(pool)
 	authService := service.NewAuthService(userRepository, tokenAuth)
 	userService := service.NewUserService(userRepository)
+	categoryService := service.NewCategoryService(categoryRepository)
+	postService := service.NewPostService(postRepository)
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+	postHandler := handler.NewPostHandler(postService)
 
 	turnstileService := service.NewTurnstileService(cfg.Turnstile.Secret)
 	serviceHandler := handler.NewServiceHandler()
 
 	serviceRoutes := router.ServiceRouter(serviceHandler, turnstileService)
 	authRoutes := router.AuthRouter(authHandler, tokenAuth, userRepository)
-	adminRoutes := router.AdminRouter(userHandler, tokenAuth, userRepository)
+	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, tokenAuth, userRepository)
 	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, cfg.App.Debug)
 
 	server := newHTTPServer(cfg.Server.Address(), rootRouter)

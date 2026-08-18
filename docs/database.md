@@ -222,4 +222,4 @@ WHERE id = $1;
 - tags：标签属于 posts 属性。
 - post_tags：不需要多对多关系。
 - uploads/media：第一版仅签发 S3 预签名地址，不做媒体管理。
-- sessions/refresh_tokens：第一版使用短时效 JWT。
+- sessions/refresh_tokens：第一版使用 24 小时 JWT，不维护服务端会话或 refresh token。

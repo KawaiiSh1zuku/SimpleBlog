@@ -32,7 +32,7 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, service.ErrNotFound):
 		response.Error(w, http.StatusNotFound, "not found")
 	case errors.Is(err, service.ErrConflict):
-		response.Error(w, http.StatusConflict, "resource already exists")
+		response.Error(w, http.StatusConflict, "resource conflict")
 	case errors.Is(err, service.ErrForbidden):
 		response.Error(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, service.ErrLastAdmin):

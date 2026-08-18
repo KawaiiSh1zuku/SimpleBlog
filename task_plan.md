@@ -27,6 +27,7 @@
 | 9. 设计文档落盘 | 已完成 | 多级评论、全 HTTP 200 合约、docs 文档 |
 | 10. M0 工程与数据库基线 | 已完成 | schema、配置、数据库检查、HTTP 生命周期、统一兜底响应 |
 | 11. M1 用户、登录与权限 | 已完成 | User 重构、CRUD、JWT、当前用户、角色守卫、首个管理员 CLI |
+| 12. M2 分类与文章后台 | 已完成 | 分类 CRUD、文章 CRUD、标签规范化、所有权、发布与撤回、JWT 24 小时 |
 
 ## 约束
 
@@ -51,3 +52,5 @@
 | jwtauth v5 没有 SetIssuer helper | 1 | 直接在 claims 中设置 iss，继续使用 SetIssuedNow/SetExpiry |
 | jwtauth v5 的 SetIssuedNow 不接受时间参数 | 1 | 按本地依赖接口调用 SetIssuedNow(claims)，exp 仍使用明确计算的时间 |
 | M1 PostgreSQL 集成测试连接的 SimpleBlog 数据库不存在（3D000） | 1 | 改用本机 postgres 维护库和随机临时 schema，测试后自动清理 |
+| PostgreSQL 18 的 ON DELETE RESTRICT 返回 23001 而非 23503 | 1 | 引用冲突识别同时覆盖 restricted_sql_statement_violation 与 foreign_key_violation |
+| M2 路由测试补丁因 gofmt 后函数布局不匹配 | 1 | 读取当前文件后按实际上下文重新应用补丁 |
