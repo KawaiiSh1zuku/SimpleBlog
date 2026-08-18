@@ -40,7 +40,7 @@ func TestPublicRoutesNeedNoAuthenticationAndHideListContent(t *testing.T) {
 		AuthorNickname: "Writer", CategoryName: "Tech", CategorySlug: "tech",
 	}}
 	publicHandler := handler.NewPublicHandler(service.NewPublicService(store, routeCategoryStore{}))
-	r := PublicRouter(publicHandler)
+	r := PublicRouter(publicHandler, nil, nil)
 
 	listRecorder := httptest.NewRecorder()
 	r.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/posts", nil))

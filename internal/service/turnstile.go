@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -26,7 +27,7 @@ type turnstileResponse struct {
 func NewTurnstileService(secret string) *TurnstileService {
 	return &TurnstileService{
 		Secret: secret,
-		Client: &http.Client{},
+		Client: &http.Client{Timeout: 5 * time.Second},
 	}
 }
 

@@ -29,6 +29,7 @@
 | 11. M1 用户、登录与权限 | 已完成 | User 重构、CRUD、JWT、当前用户、角色守卫、首个管理员 CLI |
 | 12. M2 分类与文章后台 | 已完成 | 分类 CRUD、文章 CRUD、标签规范化、所有权、发布与撤回、JWT 24 小时 |
 | 13. M3 公开内容 API | 已完成 | 已发布文章列表/详情、分类、标签、筛选、稳定游标分页 |
+| 14. M4 多级评论 | 已完成 | 匿名评论、任意层级回复、Turnstile、审核与删除墓碑 |
 
 ## 约束
 
@@ -43,6 +44,7 @@
 - 评论不限制后端回复深度，前端采用类似 B 站的不随层级增加缩进的展示方式。
 - S3 首版允许 JPEG、PNG、WebP、GIF，单文件最大 10 MiB。
 - 每完成一个 milestone 创建一次签名 commit，并等待用户验收后进入下一 milestone。
+- M6 新增 PostgreSQL 深度优化要求：执行计划、索引、N+1、慢查询、事务锁、参数化 SQL、最小字段读取及可复现性能证据。
 
 ## 错误记录
 
@@ -56,3 +58,4 @@
 | PostgreSQL 18 的 ON DELETE RESTRICT 返回 23001 而非 23503 | 1 | 引用冲突识别同时覆盖 restricted_sql_statement_violation 与 foreign_key_violation |
 | M2 路由测试补丁因 gofmt 后函数布局不匹配 | 1 | 读取当前文件后按实际上下文重新应用补丁 |
 | M3 PowerShell rg 正则中的竖线被双引号错误解析 | 1 | 改用 PowerShell 单引号传递完整正则后重新审计 |
+| M4 handler 通用审核回调初稿使用未定义占位类型 | 1 | 改为使用 context、User、Comment 的真实函数签名后再编译验证 |

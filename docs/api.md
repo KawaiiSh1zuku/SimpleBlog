@@ -132,6 +132,9 @@ POST /posts/{slug}/comments
 - Turnstile token 推荐放入统一请求头，不写入评论 DTO。
 - 只能评论已发布文章。
 - 公开响应绝不包含 email。
+- Turnstile 请求头固定为 `X-Turnstile-Token`；缺失或验证失败分别返回业务 code 401/403。
+- nickname 最大 80 个 Unicode 字符，email 必须是单一有效邮箱地址，parent_id 必须属于同一篇文章。
+- 允许回复 hidden/deleted 节点；回复仍保留真实 parent_id。
 
 评论响应推荐返回树结构：
 
@@ -148,6 +151,8 @@ POST /posts/{slug}/comments
 ```
 
 hidden/deleted 节点返回占位内容，但保留 replies。deleted 节点固定显示“该评论已被删除”。后端不限制回复深度；前端采用类似 B 站的不随层级增加缩进的展示，但不能改变真实 parent_id 关系。
+
+hidden 节点公开显示“评论已隐藏”且不返回原正文；deleted 节点不可恢复。评论树由后端按 parent_id 组装，任意层级回复都保留在 `replies` 中。
 
 ## 6. 用户管理
 
@@ -231,6 +236,8 @@ DELETE /admin/comments/{id}
 - admin 管理全部评论。
 - hide 可恢复。
 - DELETE 写入 deleted 墓碑并清除个人信息，不物理删除回复树；公开端显示“该评论已被删除”。
+- 后台列表包含 email 供站点管理，但公开 DTO 和公开查询均不读取或返回 email。
+- visible 只能 hide，hidden 可以 show，deleted 不能恢复或重复删除；非法状态转换返回业务 code 409。
 
 ## 10. S3 图片直传
 

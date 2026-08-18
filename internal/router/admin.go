@@ -12,6 +12,7 @@ func AdminRouter(
 	userHandler *handler.UserHandler,
 	categoryHandler *handler.CategoryHandler,
 	postHandler *handler.PostHandler,
+	commentHandler *handler.CommentHandler,
 	tokenAuth *jwtauth.JWTAuth,
 	users appmiddleware.CurrentUserStore,
 ) chi.Router {
@@ -42,5 +43,10 @@ func AdminRouter(
 	r.Delete("/posts/{postID}", postHandler.Delete)
 	r.Post("/posts/{postID}/publish", postHandler.Publish)
 	r.Post("/posts/{postID}/withdraw", postHandler.Withdraw)
+
+	r.Get("/comments", commentHandler.ListManaged)
+	r.Post("/comments/{commentID}/hide", commentHandler.Hide)
+	r.Post("/comments/{commentID}/show", commentHandler.Show)
+	r.Delete("/comments/{commentID}", commentHandler.Delete)
 	return r
 }

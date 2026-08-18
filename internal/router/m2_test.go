@@ -66,6 +66,7 @@ func TestAdminRoutesAllowContributorPostsButNotCategories(t *testing.T) {
 		handler.NewUserHandler(service.NewUserService(users)),
 		handler.NewCategoryHandler(service.NewCategoryService(routeCategoryStore{})),
 		handler.NewPostHandler(service.NewPostService(posts)),
+		nil,
 		tokenAuth,
 		users,
 	)

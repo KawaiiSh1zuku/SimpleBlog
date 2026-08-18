@@ -62,3 +62,8 @@
 - 单元、路由与真实 PostgreSQL 测试已验证草稿不会进入列表、详情或标签聚合，列表不返回正文，详情保留 Markdown + LaTeX 原文。
 - M3 最终测试门禁通过；首次 DTO 静态扫描命令因 PowerShell 正则引号错误失败，已记录并改用单引号重跑。
 - M3 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 临时 schema、`go build ./...`、公开字段静态扫描与文档链接检查，准备创建独立签名 commit。
+- 用户要求继续 M4 与 M5，并在开始前扩充 M6：加入 PostgreSQL 查询深度优化、安全与性能验证；已同步到 milestone 范围和可验收标准。
+- 已完成 M4 Comment model/repository/service/dto/handler，接入公开评论树、Turnstile 创建与后台审核路由。
+- 评论创建原子限制为已发布文章并由复合外键阻止跨文章回复；公开 SQL 不读取 email，后台按 admin/contributor 所有权过滤。
+- 隐藏可恢复，删除写入不可恢复墓碑并清空个人信息；真实 PostgreSQL 已验证任意层级回复、回复墓碑和子回复保留。
+- M4 最终通过 `gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、真实 PostgreSQL 临时 schema、`go build ./...`、公开邮箱字段扫描与文档链接检查，准备创建独立签名 commit。
