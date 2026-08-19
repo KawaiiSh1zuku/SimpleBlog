@@ -41,7 +41,7 @@ M6 针对实际 API 查询优化 PostgreSQL 访问，重点检查：索引与筛
 - 公开文章列表与详情使用不同投影；列表不读取 `content`。
 - 后台文章列表返回 `PostSummary`，编辑器按 ID 获取正文。
 - 用户安全查询不读取 `password_hash`；只有登录查询读取。
-- 公开评论查询读取 email 仅用于生成 Gravatar URL，公开 DTO 与日志不包含 email。
+- 公开评论查询读取 email 仅用于生成 Gravatar URL，公开 DTO 不包含 email。
 - 文章和评论后台列表采用 `(时间, id)` keyset pagination，默认 50、最大 100，不使用随页数退化的 offset。
 - 评论树一次读取文章全部节点并在内存中组装，不按层级查询，因此不产生 N+1。
 - contributor 评论列表先物化其文章集合，再以 LATERAL 查询命中逐文章评论索引；代表性数据下避免了原计划扫描约 5,001 条全站评论并进行同数量文章主键查找。
@@ -52,7 +52,7 @@ M6 针对实际 API 查询优化 PostgreSQL 访问，重点检查：索引与筛
 
 - 最后管理员保护使用 transaction-level advisory lock，并设置事务内 3 秒 `lock_timeout`；并发删除两个 admin 的集成测试验证恰有一个成功、另一个返回最后管理员冲突。
 - SQLSTATE 将输入错误、冲突和可重试错误分开；序列化失败、死锁、锁不可用和连接耗尽映射为业务 code 503。
-- `DB_SLOW_QUERY_MS` 默认 250 ms，范围 1 到 60000。慢查询日志只包含规范化 SQL 的 SHA-256 短指纹、耗时、命令标签、SQLSTATE 和 request ID，不记录 SQL 文本、参数或原始 PostgreSQL Detail。
+- `DB_SLOW_QUERY_MS` 默认 250 ms，范围 1 到 60000。慢查询摘要只包含规范化 SQL 的 SHA-256 短指纹、耗时、命令标签、SQLSTATE 和 request ID；普通错误日志通过 tint 保留完整 error，便于诊断。
 
 ## 6. 复现
 

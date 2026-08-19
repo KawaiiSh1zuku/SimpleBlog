@@ -2,7 +2,6 @@ package response
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -32,7 +31,7 @@ func JSON[T any](w http.ResponseWriter, code int, msg string, data T) {
 	// 忽略编码错误
 	err := json.NewEncoder(w).Encode(resp)
 	if err != nil {
-		slog.Error("failed to encode JSON response", "error_type", fmt.Sprintf("%T", err))
+		slog.Error("failed to encode JSON response", "error", err)
 	}
 }
 

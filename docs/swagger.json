@@ -1,0 +1,1741 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SimpleBlog API",
+    "description": "SimpleBlog 博客系统 HTTP API 接口文档",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "当前服务器"
+    }
+  ],
+  "tags": [
+    { "name": "Service", "description": "服务健康检查" },
+    { "name": "Auth", "description": "认证相关接口" },
+    { "name": "Admin-Users", "description": "用户管理（需要 admin 角色）" },
+    { "name": "Admin-Categories", "description": "分类管理（需要 admin 角色）" },
+    { "name": "Admin-Links", "description": "友链管理（需要 admin 角色）" },
+    { "name": "Admin-Posts", "description": "文章管理（需要认证）" },
+    { "name": "Admin-Comments", "description": "评论管理（需要认证）" },
+    { "name": "Admin-Uploads", "description": "上传管理（需要认证）" },
+    { "name": "RSS", "description": "RSS 订阅" },
+    { "name": "Public", "description": "公开接口" }
+  ],
+  "paths": {
+    "/service/ping": {
+      "get": {
+        "tags": ["Service"],
+        "summary": "健康检查",
+        "description": "检查服务是否正常运行",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseString"
+                },
+                "example": {
+                  "code": 200,
+                  "msg": "success",
+                  "data": "Hello, 127.0.0.1"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/service/test_turnstile": {
+      "get": {
+        "tags": ["Service"],
+        "summary": "测试 Turnstile 验证",
+        "description": "测试 Cloudflare Turnstile 人机验证",
+        "parameters": [
+          {
+            "name": "X-Turnstile-Response",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Turnstile 验证 token"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "验证通过",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseString"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "用户登录",
+        "description": "用户登录获取 JWT Token。限流：每个 IP 每分钟最多 10 次请求。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "用户名或密码错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "获取当前用户信息",
+        "description": "获取当前登录用户的详细信息",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseUserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "未认证",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "tags": ["Admin-Users"],
+        "summary": "获取用户列表",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseUserList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Admin-Users"],
+        "summary": "创建用户",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseUserResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "用户名已存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{userID}": {
+      "get": {
+        "tags": ["Admin-Users"],
+        "summary": "获取单个用户",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "userID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseUserResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "用户不存在"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Admin-Users"],
+        "summary": "更新用户",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "userID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseUserResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Admin-Users"],
+        "summary": "删除用户",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "userID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                },
+                "example": {
+                  "code": 200,
+                  "msg": "user deleted",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/users/{userID}/password": {
+      "put": {
+        "tags": ["Admin-Users"],
+        "summary": "更新用户密码",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "userID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                },
+                "example": {
+                  "code": 200,
+                  "msg": "password updated",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/categories": {
+      "get": {
+        "tags": ["Admin-Categories"],
+        "summary": "获取分类列表",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCategoryList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Admin-Categories"],
+        "summary": "创建分类",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCategoryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/categories/{categoryID}": {
+      "get": {
+        "tags": ["Admin-Categories"],
+        "summary": "获取单个分类",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "categoryID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCategoryResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Admin-Categories"],
+        "summary": "更新分类",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "categoryID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCategoryResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Admin-Categories"],
+        "summary": "删除分类",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "categoryID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                },
+                "example": {
+                  "code": 200,
+                  "msg": "category deleted",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/links": {
+      "get": {
+        "tags": ["Admin-Links"],
+        "summary": "获取友链列表",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLinkList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Admin-Links"],
+        "summary": "创建友链",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/links/{linkID}": {
+      "get": {
+        "tags": ["Admin-Links"],
+        "summary": "获取单个友链",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "linkID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Admin-Links"],
+        "summary": "更新友链",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "linkID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Admin-Links"],
+        "summary": "删除友链",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "linkID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                },
+                "example": {
+                  "code": 200,
+                  "msg": "link deleted",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/posts": {
+      "get": {
+        "tags": ["Admin-Posts"],
+        "summary": "获取文章列表",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer" },
+            "description": "每页数量"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "分页游标"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseManagedPostPage"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Admin-Posts"],
+        "summary": "创建文章",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePostRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePostResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/posts/{postID}": {
+      "get": {
+        "tags": ["Admin-Posts"],
+        "summary": "获取单篇文章",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "postID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePostResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Admin-Posts"],
+        "summary": "更新文章",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "postID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePostRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePostResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Admin-Posts"],
+        "summary": "删除文章",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "postID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEmpty"
+                },
+                "example": {
+                  "code": 200,
+                  "msg": "post deleted",
+                  "data": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/posts/{postID}/publish": {
+      "post": {
+        "tags": ["Admin-Posts"],
+        "summary": "发布文章",
+        "description": "将文章状态从 draft 改为 published",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "postID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "发布成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePostResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/posts/{postID}/withdraw": {
+      "post": {
+        "tags": ["Admin-Posts"],
+        "summary": "撤回文章",
+        "description": "将文章状态从 published 改为 draft",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "postID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "撤回成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePostResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/comments": {
+      "get": {
+        "tags": ["Admin-Comments"],
+        "summary": "获取评论列表",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer" },
+            "description": "每页数量"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "分页游标"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseManagedCommentPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/comments/{commentID}/hide": {
+      "post": {
+        "tags": ["Admin-Comments"],
+        "summary": "隐藏评论",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "commentID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommentModeration"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/comments/{commentID}/show": {
+      "post": {
+        "tags": ["Admin-Comments"],
+        "summary": "显示评论",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "commentID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommentModeration"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/comments/{commentID}": {
+      "delete": {
+        "tags": ["Admin-Comments"],
+        "summary": "删除评论",
+        "description": "软删除，将状态设为 deleted",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "commentID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommentModeration"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/uploads/presign": {
+      "post": {
+        "tags": ["Admin-Uploads"],
+        "summary": "获取预签名上传 URL",
+        "description": "获取 S3 直传所需的预签名 URL 和参数",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseUploadAuthorization"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rss/article": {
+      "get": {
+        "tags": ["RSS"],
+        "summary": "文章 RSS",
+        "description": "获取最新发布文章的 RSS 订阅",
+        "responses": {
+          "200": {
+            "description": "RSS 2.0 XML",
+            "content": {
+              "application/rss+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rss/comment": {
+      "get": {
+        "tags": ["RSS"],
+        "summary": "评论 RSS",
+        "description": "获取最新评论的 RSS 订阅",
+        "responses": {
+          "200": {
+            "description": "RSS 2.0 XML",
+            "content": {
+              "application/rss+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "获取文章列表",
+        "description": "获取已发布的文章列表，支持分页和筛选",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer" },
+            "description": "每页数量"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "分页游标"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "按分类 slug 筛选"
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "按标签筛选"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePublicPostPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{slug}": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "获取文章详情",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "文章 URL 别名"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePublicPostDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "文章不存在"
+          }
+        }
+      }
+    },
+    "/posts/{slug}/comments": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "获取文章评论",
+        "description": "获取指定文章的评论树形结构",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "文章 URL 别名"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePublicCommentTree"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Public"],
+        "summary": "发表评论",
+        "description": "需要 Turnstile 人机验证",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "文章 URL 别名"
+          },
+          {
+            "name": "X-Turnstile-Response",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Turnstile 验证 token"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发表成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePublicCommentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "获取分类列表",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePublicCategoryList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "获取标签列表",
+        "description": "获取所有已使用标签",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseStringList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/links": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "获取友链列表",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLinkList"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ApiResponseEmpty": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "type": "object", "nullable": true }
+        }
+      },
+      "ApiResponseString": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "type": "string" }
+        }
+      },
+      "ApiResponseStringList": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "expires_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiResponseLoginResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/LoginResponse" }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "username": { "type": "string" },
+          "nickname": { "type": "string" },
+          "avatar_url": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "contributor"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiResponseUserResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/UserResponse" }
+        }
+      },
+      "ApiResponseUserList": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/UserResponse" }
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "required": ["username", "password", "role"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "nickname": { "type": "string" },
+          "avatar_url": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "contributor"] }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "nickname": { "type": "string" },
+          "avatar_url": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "contributor"] }
+        }
+      },
+      "UpdatePasswordRequest": {
+        "type": "object",
+        "required": ["password"],
+        "properties": {
+          "password": { "type": "string" }
+        }
+      },
+      "CategoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "description": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiResponseCategoryResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/CategoryResponse" }
+        }
+      },
+      "ApiResponseCategoryList": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CategoryResponse" }
+          }
+        }
+      },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "required": ["name", "slug"],
+        "properties": {
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "UpdateCategoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "LinkResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "url": { "type": "string" },
+          "favicon_url": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiResponseLinkResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/LinkResponse" }
+        }
+      },
+      "ApiResponseLinkList": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/LinkResponse" }
+          }
+        }
+      },
+      "CreateLinkRequest": {
+        "type": "object",
+        "required": ["name", "url"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "url": { "type": "string" },
+          "favicon_url": { "type": "string" }
+        }
+      },
+      "UpdateLinkRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "url": { "type": "string" },
+          "favicon_url": { "type": "string" }
+        }
+      },
+      "PostResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "author_id": { "type": "string", "format": "uuid" },
+          "category_id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "content": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "status": { "type": "string", "enum": ["draft", "published"] },
+          "published_at": { "type": "string", "format": "date-time", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiResponsePostResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/PostResponse" }
+        }
+      },
+      "ManagedPostListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "author_id": { "type": "string", "format": "uuid" },
+          "category_id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "status": { "type": "string", "enum": ["draft", "published"] },
+          "published_at": { "type": "string", "format": "date-time", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ManagedPostPageResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ManagedPostListItem" }
+          },
+          "next_cursor": { "type": "string" }
+        }
+      },
+      "ApiResponseManagedPostPage": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/ManagedPostPageResponse" }
+        }
+      },
+      "CreatePostRequest": {
+        "type": "object",
+        "required": ["category_id", "slug", "title"],
+        "properties": {
+          "category_id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "content": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "UpdatePostRequest": {
+        "type": "object",
+        "properties": {
+          "category_id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "content": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "ManagedCommentResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "post_id": { "type": "string", "format": "uuid" },
+          "post_slug": { "type": "string" },
+          "post_title": { "type": "string" },
+          "parent_id": { "type": "string", "format": "uuid", "nullable": true },
+          "nickname": { "type": "string" },
+          "email": { "type": "string" },
+          "content": { "type": "string" },
+          "status": { "type": "string", "enum": ["visible", "hidden", "deleted"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "moderated_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "ManagedCommentPageResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ManagedCommentResponse" }
+          },
+          "next_cursor": { "type": "string" }
+        }
+      },
+      "ApiResponseManagedCommentPage": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/ManagedCommentPageResponse" }
+        }
+      },
+      "CommentModerationResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["visible", "hidden", "deleted"] },
+          "moderated_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "ApiResponseCommentModeration": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/CommentModerationResponse" }
+        }
+      },
+      "CreateUploadRequest": {
+        "type": "object",
+        "required": ["filename", "content_type", "size"],
+        "properties": {
+          "filename": { "type": "string" },
+          "content_type": { "type": "string" },
+          "size": { "type": "integer", "format": "int64" }
+        }
+      },
+      "UploadAuthorizationResponse": {
+        "type": "object",
+        "properties": {
+          "method": { "type": "string" },
+          "object_key": { "type": "string" },
+          "upload_url": { "type": "string" },
+          "fields": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "public_url": { "type": "string" },
+          "expires_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiResponseUploadAuthorization": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/UploadAuthorizationResponse" }
+        }
+      },
+      "PublicAuthorResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "nickname": { "type": "string" },
+          "avatar_url": { "type": "string" }
+        }
+      },
+      "PublicCategorySummaryResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "slug": { "type": "string" }
+        }
+      },
+      "PublicPostListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "published_at": { "type": "string", "format": "date-time", "nullable": true },
+          "author": { "$ref": "#/components/schemas/PublicAuthorResponse" },
+          "category": { "$ref": "#/components/schemas/PublicCategorySummaryResponse" }
+        }
+      },
+      "PublicPostDetail": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "content": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "published_at": { "type": "string", "format": "date-time", "nullable": true },
+          "author": { "$ref": "#/components/schemas/PublicAuthorResponse" },
+          "category": { "$ref": "#/components/schemas/PublicCategorySummaryResponse" }
+        }
+      },
+      "PublicPostPageResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicPostListItem" }
+          },
+          "next_cursor": { "type": "string" }
+        }
+      },
+      "ApiResponsePublicPostPage": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/PublicPostPageResponse" }
+        }
+      },
+      "ApiResponsePublicPostDetail": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/PublicPostDetail" }
+        }
+      },
+      "PublicCommentResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "parent_id": { "type": "string", "format": "uuid", "nullable": true },
+          "nickname": { "type": "string" },
+          "avatar_url": { "type": "string" },
+          "content": { "type": "string" },
+          "status": { "type": "string", "enum": ["visible", "hidden", "deleted"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "replies": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicCommentResponse" }
+          }
+        }
+      },
+      "ApiResponsePublicCommentTree": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicCommentResponse" }
+          }
+        }
+      },
+      "ApiResponsePublicCommentResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/PublicCommentResponse" }
+        }
+      },
+      "CreateCommentRequest": {
+        "type": "object",
+        "required": ["nickname", "email", "content"],
+        "properties": {
+          "parent_id": { "type": "string", "format": "uuid", "nullable": true },
+          "nickname": { "type": "string" },
+          "email": { "type": "string" },
+          "content": { "type": "string" }
+        }
+      },
+      "PublicCategoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "ApiResponsePublicCategoryList": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicCategoryResponse" }
+          }
+        }
+      }
+    }
+  }
+}

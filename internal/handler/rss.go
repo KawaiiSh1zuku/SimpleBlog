@@ -1,11 +1,11 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/dto"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
-	"github.com/KawaiiSh1zuku/SimpleBlog/internal/utils"
 )
 
 type RSSHandler struct{ RSS *service.RSSService }
@@ -42,6 +42,6 @@ func (h *RSSHandler) write(w http.ResponseWriter, r *http.Request, feed dto.RSS)
 }
 
 func writeRSSError(w http.ResponseWriter, r *http.Request, err error) {
-	utils.LogError(r.Context(), "rss request failed", err)
+	slog.ErrorContext(r.Context(), "rss request failed", "error", err)
 	http.Error(w, "internal server error", http.StatusInternalServerError)
 }

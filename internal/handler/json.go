@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
-	"github.com/KawaiiSh1zuku/SimpleBlog/internal/utils"
 )
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
@@ -51,7 +51,7 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, service.ErrUnavailable):
 		response.Error(w, http.StatusServiceUnavailable, "temporarily unavailable")
 	default:
-		utils.LogError(r.Context(), "request failed", err)
+		slog.ErrorContext(r.Context(), "request failed", "error", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error")
 	}
 }

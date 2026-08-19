@@ -3,8 +3,11 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/response"
@@ -39,6 +42,22 @@ func TestWriteServiceErrorUsesHTTP200AndBusinessCode(t *testing.T) {
 				t.Fatalf("business code = %d, want %d", body.Code, test.code)
 			}
 		})
+	}
+}
+
+func TestWriteServiceErrorLogsFullDiagnostic(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	defer slog.SetDefault(previous)
+
+	diagnostic := "database SimpleBlog does not exist"
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	writeServiceError(recorder, request, errors.New(diagnostic))
+
+	if !strings.Contains(logs.String(), diagnostic) || !strings.Contains(logs.String(), `"error"`) {
+		t.Fatalf("full error diagnostic missing: %s", logs.String())
 	}
 }
 

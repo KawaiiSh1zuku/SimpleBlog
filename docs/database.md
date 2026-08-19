@@ -9,7 +9,7 @@
 - 时间使用 `TIMESTAMPTZ`。
 - `updated_at` 由 repository 的 UPDATE 语句显式设置为 `NOW()`，不使用触发器。
 - role/status 使用 `VARCHAR + CHECK`，不使用 PostgreSQL enum。
-- 邮箱、密码哈希等敏感字段不能进入日志和公开 DTO。
+- 邮箱、密码哈希等敏感字段不能进入公开 DTO；完整错误链可能进入受控服务端日志，日志访问由运维权限保护。
 
 ## 2. 实体关系
 
@@ -195,7 +195,7 @@ CommentService 还必须保证：
 - parent_id 创建后不可更改。
 - 不设置最大回复深度；前端展示策略不改变数据库中的真实 parent_id。
 - 回复已删除或已隐藏评论是否允许，由当前设计统一设为允许；回复仍挂在原节点下。
-- 返回公开评论树时，repository 可读取 email 供 DTO 计算 Gravatar URL，但 email 永远不进入公开 DTO 或日志。
+- 返回公开评论树时，repository 可读取 email 供 DTO 计算 Gravatar URL，但 email 永远不进入公开 DTO；数据库错误详情可能进入受控服务端日志。
 
 隐藏：
 

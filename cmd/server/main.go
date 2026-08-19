@@ -27,7 +27,10 @@ func main() {
 	defer stop()
 
 	if err := run(ctx); err != nil {
-		utils.LogError(context.Background(), "server stopped", err)
+		// Startup and shutdown failures are operational errors. Keep the full
+		// wrapped error chain visible through the configured tint handler so an
+		// operator can diagnose failures such as a missing database immediately.
+		slog.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }

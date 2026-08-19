@@ -45,10 +45,12 @@
 
 慢查询日志只记录 request ID、SQL 指纹、耗时、命令标签和 SQLSTATE，不记录 SQL 文本、参数或 PostgreSQL Detail。
 
+普通内部错误通过 tint 输出完整 Go error 链，便于直接诊断数据库、认证和外部服务故障；PostgreSQL error 可能包含 Detail 和输入值。生产环境必须限制日志读取权限并配置合适的保存周期。
+
 ## 4. 站点 URL、S3 与 Gravatar
 
 `SITE_BASE_URL` 指向读者访问文章的前端站点，不是 API 地址。RSS 会生成 `{SITE_BASE_URL}/posts/{slug}`；部署前必须改成生产 HTTPS 域名。
 
 S3 bucket 必须预先创建，并允许浏览器站点源向签名地址发送 POST。若图片需要直接展示，还要为对象配置公开读取或通过 CDN 提供读取能力。`S3_PUBLIC_BASE_URL` 只用于生成最终图片地址，不负责修改 bucket 权限。
 
-公开评论查询会读取邮箱，对 `trim + lowercase` 后的值计算 Gravatar MD5，并只向前端返回 `avatar_url`。hidden/deleted 评论返回空头像；邮箱不进入公开 DTO 或日志。
+公开评论查询会读取邮箱，对 `trim + lowercase` 后的值计算 Gravatar MD5，并只向前端返回 `avatar_url`。hidden/deleted 评论返回空头像；邮箱不进入公开 DTO，但数据库错误详情可能进入受控服务端日志。

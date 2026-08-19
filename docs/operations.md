@@ -14,11 +14,9 @@
 
 在空数据库上按文件名顺序执行全部 SQL：
 
-```powershell
-$env:DATABASE_URL = "postgres://user:password@localhost:5432/simpleblog?sslmode=disable"
-Get-ChildItem migrations/*.sql | Sort-Object Name | ForEach-Object {
-    psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f $_.FullName
-}
+```cmd
+set DATABASE_URL="postgres://user:password@localhost:5432/simpleblog?sslmode=disable"
+for /f "delims=" %i in ('dir /b /on migrations\*.sql') do "E:\Program Files\PostgreSQL\18\bin\psql.exe" %DATABASE_URL% -v ON_ERROR_STOP=1 -f "migrations\%i"
 ```
 
 每个 migration 自带事务。升级时先备份数据库，再执行尚未应用的新文件；仓库目前不提供 down migration，不应通过反向执行 SQL 文件回滚。
