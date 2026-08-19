@@ -40,7 +40,7 @@ func (limiter *IPRateLimiter) Limit(next http.Handler) http.Handler {
 		allowed, retryAfter := limiter.allow(requestClientIP(r))
 		if !allowed {
 			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
-			response.Error(w, http.StatusTooManyRequests, "too many requests")
+			response.Error(w, http.StatusTooManyRequests, "请求次数过多")
 			return
 		}
 		next.ServeHTTP(w, r)

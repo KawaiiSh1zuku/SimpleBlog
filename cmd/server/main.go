@@ -101,7 +101,7 @@ func run(ctx context.Context) error {
 	serviceHandler := handler.NewServiceHandler()
 
 	serviceRoutes := router.ServiceRouter(serviceHandler, turnstileService)
-	authRoutes := router.AuthRouter(authHandler, tokenAuth, userRepository)
+	authRoutes := router.AuthRouter(authHandler, tokenAuth, userRepository, turnstileService)
 	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, commentHandler, uploadHandler, linkHandler, tokenAuth, userRepository)
 	rssRoutes := router.RSSRouter(rssHandler)
 	publicRoutes := router.PublicRouter(publicHandler, commentHandler, linkHandler, turnstileService)

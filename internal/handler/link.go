@@ -90,13 +90,13 @@ func (h *LinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.SuccessWithMsg[any](w, "link deleted")
+	response.SuccessWithMsg[any](w, "删除成功")
 }
 
 func linkID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id, err := uuid.Parse(chi.URLParam(r, "linkID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid link id")
+		response.Error(w, http.StatusBadRequest, "友链 ID 错误")
 		return uuid.Nil, false
 	}
 	return id, true

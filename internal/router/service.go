@@ -2,7 +2,7 @@ package router
 
 import (
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/handler"
-	"github.com/KawaiiSh1zuku/SimpleBlog/internal/middleware"
+	appmiddleware "github.com/KawaiiSh1zuku/SimpleBlog/internal/middleware"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
 	"github.com/go-chi/chi/v5"
 )
@@ -16,7 +16,7 @@ func ServiceRouter(serviceHandler *handler.ServiceHandler, turnstileService *ser
 
 	r.Get("/ping", serviceHandler.Ping) // GET /service/ping
 
-	r.With(middleware.TurnstileMiddleware(turnstileService)).
+	r.With(appmiddleware.TurnstileMiddleware(turnstileService)).
 		Get("/test_turnstile", serviceHandler.TestTurnstile)
 
 	return r

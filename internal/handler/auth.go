@@ -31,7 +31,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	user, ok := appmiddleware.CurrentUser(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "authentication required")
+		response.Error(w, http.StatusUnauthorized, "未登录")
 		return
 	}
 	response.Success(w, dto.NewUserResponse(user))

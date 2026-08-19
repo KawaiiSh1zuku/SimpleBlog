@@ -92,7 +92,7 @@ func (h *PostHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.SuccessWithMsg[any](w, "post deleted")
+	response.SuccessWithMsg[any](w, "删除成功")
 }
 
 func (h *PostHandler) Publish(w http.ResponseWriter, r *http.Request) {

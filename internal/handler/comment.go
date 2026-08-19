@@ -93,7 +93,7 @@ func (h *CommentHandler) moderate(
 func commentID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id, err := uuid.Parse(chi.URLParam(r, "commentID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid comment id")
+		response.Error(w, http.StatusBadRequest, "评论 ID 错误")
 		return uuid.Nil, false
 	}
 	return id, true

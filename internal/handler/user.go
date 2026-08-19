@@ -89,7 +89,7 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.SuccessWithMsg[any](w, "user deleted")
+	response.SuccessWithMsg[any](w, "删除成功")
 }
 
 func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
@@ -106,13 +106,13 @@ func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
-	response.SuccessWithMsg[any](w, "password updated")
+	response.SuccessWithMsg[any](w, "密码更改成功")
 }
 
 func userID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id, err := uuid.Parse(chi.URLParam(r, "userID"))
 	if err != nil {
-		response.Error(w, http.StatusBadRequest, "invalid user id")
+		response.Error(w, http.StatusBadRequest, "用户 ID 错误")
 		return uuid.Nil, false
 	}
 	return id, true

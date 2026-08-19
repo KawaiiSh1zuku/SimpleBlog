@@ -37,10 +37,10 @@ func New(serviceRoutes, authRoutes, adminRoutes, rssRoutes, publicRoutes http.Ha
 func newRouter() chi.Router {
 	r := chi.NewRouter()
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
-		response.Error(w, http.StatusNotFound, "not found")
+		response.Error(w, http.StatusNotFound, "找不到资源")
 	})
 	r.MethodNotAllowed(func(w http.ResponseWriter, _ *http.Request) {
-		response.Error(w, http.StatusMethodNotAllowed, "method not allowed")
+		response.Error(w, http.StatusMethodNotAllowed, "请求方法错误")
 	})
 	return r
 }

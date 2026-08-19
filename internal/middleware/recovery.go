@@ -18,7 +18,7 @@ func Recoverer(next http.Handler) http.Handler {
 					"panic", recovered,
 					"stack", string(debug.Stack()),
 				)
-				response.Error(w, http.StatusInternalServerError, "internal server error")
+				response.Error(w, http.StatusInternalServerError, "内部服务错误")
 			}
 		}()
 

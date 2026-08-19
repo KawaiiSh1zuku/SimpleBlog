@@ -27,21 +27,21 @@ func Authenticate(users CurrentUserStore) func(http.Handler) http.Handler {
 			subject, ok := claims["sub"].(string)
 			userID, idErr := uuid.Parse(subject)
 			if tokenErr != nil || !ok || idErr != nil {
-				response.Error(w, http.StatusUnauthorized, "authentication required")
+				response.Error(w, http.StatusUnauthorized, "需要登录")
 				return
 			}
 
 			user, err := users.GetByID(r.Context(), userID)
 			if errors.Is(err, pgx.ErrNoRows) {
-				response.Error(w, http.StatusUnauthorized, "authentication required")
+				response.Error(w, http.StatusUnauthorized, "需要登录")
 				return
 			}
 			if err != nil {
 				slog.ErrorContext(r.Context(), "load authenticated user", "error", err)
 				if repository.IsRetryable(err) {
-					response.Error(w, http.StatusServiceUnavailable, "temporarily unavailable")
+					response.Error(w, http.StatusServiceUnavailable, "服务暂时不可用")
 				} else {
-					response.Error(w, http.StatusInternalServerError, "internal server error")
+					response.Error(w, http.StatusInternalServerError, "内部服务错误")
 				}
 				return
 			}
@@ -60,11 +60,11 @@ func RequireRole(roles ...model.Role) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user, ok := CurrentUser(r.Context())
 			if !ok {
-				response.Error(w, http.StatusUnauthorized, "authentication required")
+				response.Error(w, http.StatusUnauthorized, "需要登录")
 				return
 			}
 			if _, ok := allowed[user.Role]; !ok {
-				response.Error(w, http.StatusForbidden, "forbidden")
+				response.Error(w, http.StatusForbidden, "无权访问")
 				return
 			}
 			next.ServeHTTP(w, r)

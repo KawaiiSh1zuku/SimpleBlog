@@ -19,7 +19,7 @@ func LimitRequestBody(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.ContentLength > maxBytes {
-				response.Error(w, http.StatusRequestEntityTooLarge, "request body too large")
+				response.Error(w, http.StatusRequestEntityTooLarge, "请求体大小异常")
 				return
 			}
 			if r.Body != nil {
