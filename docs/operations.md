@@ -67,9 +67,37 @@ GET /service/test_turnstile
 
 生产环境建议由反向代理终止 TLS，再转发到 SimpleBlog。默认保持 `TRUST_PROXY_HEADERS=false`；只有在代理会删除客户端原始 `X-Real-IP` 并写入可信值时才开启。
 
+前端与 API 不同源时，将前端的精确 Origin 写入 `CORS_ALLOWED_ORIGINS`。例如：
+
+```ini
+CORS_ALLOWED_ORIGINS=https://blog.example.com,https://admin.example.com
+```
+
+服务端允许 GET、HEAD、POST、PATCH、DELETE、OPTIONS，并允许浏览器预检 `Authorization`、`Content-Type` 与 `X-Turnstile-Token`。JWT 从 `Authorization` 读取，因此 CORS 不启用 Cookie credentials。开发默认允许 Vite 的 `localhost:5173` 和 `127.0.0.1:5173`。
+
 JSON 业务响应始终写成 HTTP 200，因此代理监控应解析 body `code` 或使用结构化访问日志中的 `business_code`。RSS 端点是例外，失败会返回真实 HTTP 5xx，可按标准状态监控。
 
-## 7. S3 直传检查
+## 7. 访问日志留存
+
+访问日志独立写入启动进程当前工作目录下的 `logs`：
+
+```text
+logs/
+  access-2026-08-18.log.gz
+  access-2026-08-19.log
+```
+
+当天文件保持纯文本；启动时和跨日后的首次请求会将旧 `.log` 压缩为 gzip，并删除超过 `ACCESS_LOG_RETENTION_DAYS` 的归档。保留天数包含当天，默认 30 天。运行账号必须能创建和写入该目录；同一运行目录只应由一个 SimpleBlog 进程使用。
+
+每个请求写一行 nginx 风格记录：
+
+```text
+203.0.113.9 - - [19/Aug/2026:11:30:00 +0800] "POST /comments HTTP/1.1" 200 96 duration_ms=4 business_code=400
+```
+
+字段依次为客户端 IP、完成时间、请求方法/路径/协议、HTTP 状态、响应字节数、耗时和响应体业务 `code`。不记录 request ID、query、请求体、Authorization 或评论邮箱。终端运行日志仍由 tint 输出，内部错误保留完整 error 链，不会混入访问日志归档。
+
+## 8. S3 直传检查
 
 部署前确认：
 
@@ -79,7 +107,7 @@ JSON 业务响应始终写成 HTTP 200，因此代理监控应解析 body `code`
 - 前端原样提交预签名响应中的全部 `fields`，最后以 `file` 字段附加文件。
 - API 只签发 POST policy，不接收图片字节。
 
-## 8. 上线检查
+## 9. 上线检查
 
 - `DEBUG=false`，所有默认密钥已替换。
 - PostgreSQL 生产连接使用合适的 SSL mode。
@@ -88,5 +116,7 @@ JSON 业务响应始终写成 HTTP 200，因此代理监控应解析 body `code`
 - Turnstile、S3 CORS、公开图片 URL 和 Gravatar 镜像已验证。
 - `SITE_BASE_URL` 已指向生产前端 HTTPS 域名，RSS 中的文章/评论链接可访问。
 - 反向代理覆盖 `X-Real-IP` 后才开启可信代理配置。
+- `CORS_ALLOWED_ORIGINS` 已替换为实际前端 HTTPS Origin，未使用通配符。
+- 运行目录可写，`ACCESS_LOG_RETENTION_DAYS` 符合审计要求，且 `logs` 只对运维账号开放。
 - `/service/ping`、登录、文章读取、评论提交和 S3 直传链路均完成烟雾测试。
 - `/rss/article`、`/rss/comment` 可被 RSS 阅读器解析，`/links` 只返回预期 HTTP(S) 地址。

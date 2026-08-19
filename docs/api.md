@@ -49,6 +49,8 @@
 
 反向代理、网络中断和进程崩溃不属于应用可控制的业务响应，仍可能产生真实非 200 或无响应。日志和监控必须按 body code/结构化日志统计错误，不能只统计 HTTP 状态。
 
+浏览器 CORS 预检 `OPTIONS` 是传输层例外，成功时返回 HTTP 204 且无 JSON body。允许来源由 `CORS_ALLOWED_ORIGINS` 配置；业务请求仍遵循上述响应协议。
+
 `GET /rss/article` 和 `GET /rss/comment` 是订阅器兼容所需的显式例外：成功返回 RSS 2.0 XML 与 `application/rss+xml; charset=utf-8`，内部失败返回真实 HTTP 500，不使用 JSON envelope。
 
 有请求体的接口按 JSON 解析，客户端应发送 `Content-Type: application/json`；未知字段会被拒绝。全局请求体上限为 2 MiB，文章正文另限 1 MiB。成功或失败都可能省略空 `data`。

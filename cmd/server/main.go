@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/config"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/handler"
+	applogging "github.com/KawaiiSh1zuku/SimpleBlog/internal/logging"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/repository"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/router"
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/service"
@@ -43,7 +44,11 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	logLevel.Set(slog.Level(utils.MapLogLevel(cfg.App.Loglevel)))
-
+	accessWriter, err := applogging.NewAccessWriter("logs", cfg.App.AccessLogRetentionDays)
+	if err != nil {
+		return fmt.Errorf("initialize access log: %w", err)
+	}
+	defer accessWriter.Close()
 	poolConfig, err := pgxpool.ParseConfig(cfg.Database.ConnectionString())
 	if err != nil {
 		return fmt.Errorf("parse database config: %w", err)
@@ -62,7 +67,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("ping database: %w", err)
 	}
 
-	tokenAuth := jwtauth.New("HS256", cfg.JWT.Secret, nil)
+	tokenAuth := newTokenAuth(cfg.JWT.Secret)
 	userRepository := repository.NewUserRepository(pool)
 	categoryRepository := repository.NewCategoryRepository(pool)
 	postRepository := repository.NewPostRepository(pool)
@@ -100,11 +105,15 @@ func run(ctx context.Context) error {
 	adminRoutes := router.AdminRouter(userHandler, categoryHandler, postHandler, commentHandler, uploadHandler, linkHandler, tokenAuth, userRepository)
 	rssRoutes := router.RSSRouter(rssHandler)
 	publicRoutes := router.PublicRouter(publicHandler, commentHandler, linkHandler, turnstileService)
-	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, rssRoutes, publicRoutes, cfg.Server.TrustProxyHeaders)
+	rootRouter := router.New(serviceRoutes, authRoutes, adminRoutes, rssRoutes, publicRoutes, accessWriter, cfg.Server.TrustProxyHeaders, cfg.Server.CORSOrigins())
 
 	server := newHTTPServer(cfg.Server.Address(), rootRouter)
 	slog.Info("starting server", "address", server.Addr)
 	return serve(ctx, server)
+}
+
+func newTokenAuth(secret string) *jwtauth.JWTAuth {
+	return jwtauth.New("HS256", []byte(secret), nil)
 }
 
 func configureLogger() *slog.LevelVar {

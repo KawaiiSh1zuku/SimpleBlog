@@ -6,6 +6,8 @@
 - 友情链接、RSS、文章、评论等查询不接受客户端提供的列名、排序表达式或原始 SQL。
 - 集成测试会把 `x'); DROP TABLE friend_links; --` 作为普通字段写入并原样读回，再确认表仍存在。
 - 慢查询摘要不记录 SQL 参数；普通错误日志保留完整 error 链，PostgreSQL Detail 可能包含输入值，因此日志必须作为受控调试数据管理。
+- nginx 风格访问日志只记录 path，不记录 query、请求体、Authorization、request ID 或评论邮箱；可信代理 IP 仍必须由受控反向代理覆盖后才能启用。
+- CORS 仅允许 `CORS_ALLOWED_ORIGINS` 中精确配置的 HTTP(S) Origin，不接受 `*`、路径或用户信息；CORS 只是浏览器读取策略，所有后台接口仍必须通过 JWT 与 service 权限校验。
 
 代码审计和回归测试能保证当前已知查询路径不存在直接 SQL 拼接入口；以后增加动态排序或筛选时，必须使用服务端枚举映射，不能把请求字符串放入 SQL 结构位置。
 

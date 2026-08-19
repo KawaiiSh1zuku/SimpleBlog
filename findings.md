@@ -248,3 +248,27 @@
 - 新评论会统一换行、trim 后保存，并拒绝尖括号与危险控制字符；DTO/RSS 对迁移前旧数据把尖括号替换为全角字符并剔除控制字符，文章详情正文不受影响。
 - 真实 PostgreSQL 注入测试将 `x'); DROP TABLE friend_links; --` 作为参数写入并原样读回，`friend_links` 表保持存在；新增 SQL 均使用 pgx 占位参数。
 - 50k comments 的 RSS 查询命中 `comments_visible_created_idx`，本次 PostgreSQL 18 执行时间约 0.39 ms；这是计划形状证据而非生产 SLA。
+
+## 2026-08-19 访问日志留存
+
+- 现有 `AccessLog` 使用全局 `slog` 输出 `request completed`，包含 request_id、method、path、remote_ip、business_code、duration_ms、response_bytes。
+- 采用独立访问日志 writer：终端继续走全局 tint 完整运行日志，访问记录额外写入 `logs/access-YYYY-MM-DD.log`，避免把所有运行错误与访问记录混入归档。
+- `ACCESS_LOG_RETENTION_DAYS` 默认 30，语义为包含当天的自然日总数；范围建议 1–3650。
+- 轮转 writer 使用标准库 `compress/gzip`，历史压缩采用临时文件 + rename，避免留下半成品；启动及跨日首写时执行压缩和过期清理。
+- 运行目录无法创建日志文件时服务拒绝启动；单进程部署下 mutex 足以保护写入与跨日轮转，不增加第三方轮转依赖。
+- 用户要求文件内容参考 nginx access log；文件行将同时记录 HTTP status 与 body business_code，因为普通 JSON 业务错误的真实 HTTP status 固定为 200。
+- 用户明确不需要 request_id；文件行只保留 IP、完成时间、request line、HTTP status、响应字节、耗时和 business_code，且 request line 不含 query。
+- 首轮 Windows 测试发现 gzip 源文件必须在 `os.Remove` 前显式关闭，不能只依赖函数退出时 defer。
+- 最终文档链接检查必须限定后端文档范围；递归仓库会进入用户的 `frontend/node_modules`，第三方 README 的仓库内相对链接不属于本项目验收范围。
+
+## 2026-08-19 CORS
+
+- 前端 `.env` 直接使用 `http://localhost:8080`，Vite 开发页来源为 `http://localhost:5173`；Axios 固定发送 JSON Content-Type，登录会触发跨域预检，登录后的接口还会发送 Authorization。
+- 采用标准库白名单中间件，不新增 go-chi/cors 依赖；精确 Origin 由 `CORS_ALLOWED_ORIGINS` 逗号列表配置，不支持通配符。
+- JWT 存在 localStorage 并通过 Authorization 发送，不依赖 Cookie，因此不设置 Access-Control-Allow-Credentials。
+- CORS 位于访问日志之后、业务限制与路由之前；OPTIONS 预检会被记录为 HTTP/business 204，同时不会进入业务 handler。
+
+## 2026-08-19 JWT 签发修复
+
+- jwtauth v5 的 HS256 signer 要求 `[]byte` key；组合根此前把环境变量字符串原样传入，构造阶段不报错，直到登录 Encode 才返回 invalid key type。
+- service 单元测试一直使用 `[]byte`，因此未覆盖组合根的类型偏差；新增 server 级签发/验证测试锁定真实初始化路径。

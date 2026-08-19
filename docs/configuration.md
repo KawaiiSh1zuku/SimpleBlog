@@ -12,12 +12,14 @@
 |---|---|---|
 | `LOG_LEVEL` | `INFO` | `DEBUG`、`INFO`、`WARN` 或 `ERROR` |
 | `DEBUG` | `false` | 为 `true` 时允许开发默认密钥；不改变路由或日志结构 |
+| `ACCESS_LOG_RETENTION_DAYS` | `30` | 访问日志保留的自然日总数，包含当天；范围 1–3650 |
 | `SITE_NAME` | `SimpleBlog` | RSS 使用的站点名称，不能为空 |
 | `SITE_DESCRIPTION` | `A SimpleBlog site` | RSS channel 描述，不能为空 |
 | `SITE_BASE_URL` | `http://localhost:3000` | 公开前端绝对基址，用于 RSS 链接，不允许 query/fragment |
 | `SERVER_HOST` | `localhost` | HTTP 监听地址；容器或远程部署通常使用 `0.0.0.0` |
 | `SERVER_PORT` | `8080` | 1–65535 |
 | `TRUST_PROXY_HEADERS` | `false` | 是否信任反向代理写入的 `X-Real-IP` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | 允许浏览器调用 API 的精确 Origin，多个值以逗号分隔 |
 | `DB_HOST` | `localhost` | PostgreSQL 主机 |
 | `DB_PORT` | `5432` | PostgreSQL 端口 |
 | `DB_USER` | `postgres` | 数据库用户 |
@@ -43,9 +45,13 @@
 
 `TRUST_PROXY_HEADERS=true` 只适用于可信反向代理。代理必须无条件覆盖客户端发送的 `X-Real-IP`；否则攻击者可以伪造 IP 绕过登录限流或污染 Turnstile 的 remote IP。
 
+`CORS_ALLOWED_ORIGINS` 必须填写完整的 `http://` 或 `https://` Origin，不带路径、query、fragment 或用户信息，也不接受 `*`。生产部署应替换为真实前端 Origin，例如 `https://blog.example.com`；配置只影响浏览器跨域读取，不替代认证和权限检查。
+
 慢查询日志只记录 request ID、SQL 指纹、耗时、命令标签和 SQLSTATE，不记录 SQL 文本、参数或 PostgreSQL Detail。
 
 普通内部错误通过 tint 输出完整 Go error 链，便于直接诊断数据库、认证和外部服务故障；PostgreSQL error 可能包含 Detail 和输入值。生产环境必须限制日志读取权限并配置合适的保存周期。
+
+访问日志固定写入进程当前工作目录的 `logs` 子目录。当天使用 `access-YYYY-MM-DD.log`，过去日期使用同名 `.log.gz`；`ACCESS_LOG_RETENTION_DAYS=1` 表示仅保留当天。目录创建或当前日志打开失败时，服务拒绝启动。
 
 ## 4. 站点 URL、S3 与 Gravatar
 

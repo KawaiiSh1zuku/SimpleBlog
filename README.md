@@ -10,7 +10,7 @@ SimpleBlog 是一个小而精的单站点、多用户博客后端，使用 Go、
 - 匿名任意层级评论、Turnstile、隐藏/恢复和删除墓碑。
 - 根据评论邮箱生成可配置镜像源的 Gravatar URL；公开响应不返回邮箱。
 - S3 兼容 POST policy 直传，图片字节不经过 API。
-- 请求限制、登录限流、tint 完整错误日志、慢查询追踪和 PostgreSQL 查询优化。
+- 可配置 CORS 白名单、请求限制、登录限流、tint 完整错误日志、按日 gzip 留存的 nginx 风格访问日志、慢查询追踪和 PostgreSQL 查询优化。
 - 文章/评论 RSS 2.0、公开友情链接与管理员维护接口。
 - 评论纯文本 XSS 防线和参数化 SQL 注入回归验证；文章可信 HTML 保持原样。
 

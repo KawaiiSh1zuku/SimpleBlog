@@ -5,7 +5,25 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/go-chi/jwtauth/v5"
 )
+
+func TestNewTokenAuthSignsAndVerifiesHS256Token(t *testing.T) {
+	tokenAuth := newTokenAuth("test-secret")
+	_, encoded, err := tokenAuth.Encode(map[string]any{"sub": "user-id"})
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	token, err := jwtauth.VerifyToken(tokenAuth, encoded)
+	if err != nil {
+		t.Fatalf("VerifyToken() error = %v", err)
+	}
+	subject, ok := token.Subject()
+	if !ok || subject != "user-id" {
+		t.Fatalf("subject = %q, want user-id", subject)
+	}
+}
 
 func TestNewHTTPServerHasTimeouts(t *testing.T) {
 	server := newHTTPServer("127.0.0.1:0", http.NewServeMux())

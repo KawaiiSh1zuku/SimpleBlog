@@ -24,14 +24,16 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Loglevel string `env:"LOG_LEVEL" envDefault:"INFO"`
-	Debug    bool   `env:"DEBUG" envDefault:"false"`
+	Loglevel               string `env:"LOG_LEVEL" envDefault:"INFO"`
+	Debug                  bool   `env:"DEBUG" envDefault:"false"`
+	AccessLogRetentionDays int    `env:"ACCESS_LOG_RETENTION_DAYS" envDefault:"30"`
 }
 
 type ServerConfig struct {
-	Host              string `env:"SERVER_HOST" envDefault:"localhost"`
-	Port              string `env:"SERVER_PORT" envDefault:"8080"`
-	TrustProxyHeaders bool   `env:"TRUST_PROXY_HEADERS" envDefault:"false"`
+	Host               string `env:"SERVER_HOST" envDefault:"localhost"`
+	Port               string `env:"SERVER_PORT" envDefault:"8080"`
+	TrustProxyHeaders  bool   `env:"TRUST_PROXY_HEADERS" envDefault:"false"`
+	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:5173,http://127.0.0.1:5173"`
 }
 
 type DatabaseConfig struct {
@@ -93,10 +95,16 @@ func (c *Config) Validate() error {
 	if !isLogLevel(c.App.Loglevel) {
 		errs = append(errs, fmt.Errorf("invalid LOG_LEVEL %q", c.App.Loglevel))
 	}
+	if c.App.AccessLogRetentionDays < 1 || c.App.AccessLogRetentionDays > 3650 {
+		errs = append(errs, errors.New("ACCESS_LOG_RETENTION_DAYS must be between 1 and 3650"))
+	}
 	if strings.TrimSpace(c.Server.Host) == "" {
 		errs = append(errs, errors.New("SERVER_HOST must not be empty"))
 	}
 	if err := validatePort("SERVER_PORT", c.Server.Port); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateCORSOrigins(c.Server.CORSAllowedOrigins); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -180,6 +188,16 @@ func (c ServerConfig) Address() string {
 	return net.JoinHostPort(c.Host, c.Port)
 }
 
+// CORSOrigins returns the validated exact browser origins.
+func (c ServerConfig) CORSOrigins() []string {
+	parts := strings.Split(c.CORSAllowedOrigins, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origins = append(origins, strings.TrimSpace(part))
+	}
+	return origins
+}
+
 // ConnectionString 构造经过 URL 编码的 PostgreSQL 连接字符串。
 func (c DatabaseConfig) ConnectionString() string {
 	u := &url.URL{
@@ -206,6 +224,27 @@ func validateHTTPURL(name, value string) error {
 	parsed, err := url.ParseRequestURI(value)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return fmt.Errorf("%s must be an absolute HTTP(S) URL without query or fragment", name)
+	}
+	return nil
+}
+
+func validateCORSOrigins(value string) error {
+	origins := strings.Split(value, ",")
+	if len(origins) == 0 {
+		return errors.New("CORS_ALLOWED_ORIGINS must contain at least one origin")
+	}
+	seen := make(map[string]struct{}, len(origins))
+	for _, rawOrigin := range origins {
+		origin := strings.TrimSpace(rawOrigin)
+		parsed, err := url.ParseRequestURI(origin)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") ||
+			parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS must contain comma-separated HTTP(S) origins without path, query, fragment, or credentials")
+		}
+		if _, exists := seen[origin]; exists {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS must not contain duplicate origins")
+		}
+		seen[origin] = struct{}{}
 	}
 	return nil
 }

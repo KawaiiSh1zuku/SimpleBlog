@@ -102,3 +102,27 @@
 - 真实 PostgreSQL 全量测试通过：迁移、RSS published/visible 过滤、评论 CHECK、SQL 注入载荷、查询计划与既有 repository 回归均成功；RSS 评论查询命中部分索引。
 - 已同步 README 与 docs 中的 API、架构、数据库、权限、配置、部署、测试、限制、PostgreSQL 优化、安全边界及 milestone；文档链接和过期术语扫描通过。
 - M8 已完成，按用户本轮要求保留为未提交工作区变更。
+
+## 2026-08-19
+
+- 按用户要求恢复完整 tint/slog 错误输出，移除仅记录 error_type/SQLSTATE 的包装器；启动实测已能显示完整 `ping database` 错误链。
+- 开始实现访问日志按日留存：独立访问日志文件、历史 gzip、可配置自然日保留策略。
+- 已新增标准库实现的 `internal/logging.AccessWriter`：当前日文本、历史 gzip、临时文件压缩、自然日过期清理和互斥轮转；加入配置与核心轮转测试。
+- 已把访问日志 writer 显式注入根路由；每条访问记录继续输出到终端 tint，同时以 nginx 风格写入独立按日文件，完整运行错误日志路径保持不变。
+- 文件行同时记录 HTTP status 与业务 code，不记录用户明确移除的 request_id，也不记录 query、请求体、认证头或评论邮箱；定向测试已通过。
+- 访问日志实现已同步 README、配置、架构、运维、测试与安全文档；`ACCESS_LOG_RETENTION_DAYS` 默认 30，范围 1–3650，包含当天。
+- 阶段 19 最终通过 `go mod verify`、`gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、`go build ./...` 与 `git diff --check`，按用户要求暂不提交。
+- 首次文档链接脚本误递归扫描 `frontend/node_modules`；已记录并改为只检查 `README.md` 与 `docs/*.md`，不触碰用户前端目录。
+- 收紧范围后的后端文档链接检查全部通过；工作区未暂存、未提交，`frontend` 及用户维护的额外文档未被修改。
+
+## 2026-08-19 CORS
+
+- 已确认前端 Vite 5173 → API 8080 的直接请求，以及 Content-Type/Authorization 触发预检的原因。
+- 已新增标准库 CORS 白名单中间件、`CORS_ALLOWED_ORIGINS` 配置校验并接入根路由；登录预检、普通响应和拒绝未知来源的定向测试通过。
+- 已同步配置、API、架构、部署、测试和安全文档；未修改 frontend。
+- CORS 阶段最终通过 `go mod verify`、`gofmt -d`、`go vet ./...`、`go test ./...`、`go test -race ./...`、`go build ./...`、后端文档链接检查和 `git diff --check`；暂未提交。
+
+## 2026-08-19 JWT 签发修复
+
+- 根据实际登录日志定位到组合根把 JWT_SECRET string 传给 HS256 signer；已改为 []byte 并增加真实 Encode/Verify 回归测试。
+- 修复最终通过 `gofmt`、`go vet ./...`、`go test ./...`、`go test -race ./...` 与 `go build ./...`；暂未提交。

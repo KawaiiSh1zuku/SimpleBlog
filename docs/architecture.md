@@ -37,10 +37,11 @@ internal/dto/                  # HTTP 输入输出模型
 internal/repository/           # PostgreSQL 数据访问
 internal/service/              # 业务规则、权限和状态流转
 internal/handler/              # HTTP 参数解析与响应
-internal/middleware/           # 认证、角色、Turnstile 等中间件
+internal/middleware/           # CORS、认证、角色、Turnstile 等中间件
 internal/router/               # 公开、认证和后台路由
 internal/response/             # 统一 HTTP 200 + body code 响应
 internal/storage/              # S3 兼容签名适配
+internal/logging/              # 访问日志按日轮转、压缩与保留
 ```
 
 依赖方向固定为：
@@ -129,6 +130,7 @@ internal/middleware/
   auth.go
   turnstile.go
   request.go
+  cors.go
   rate_limit.go
   recovery.go
 
@@ -146,8 +148,10 @@ internal/response/
 internal/storage/
   s3.go
 
+internal/logging/
+  access.go
+
 internal/utils/
-  logging.go
   utils.go
 
 migrations/
@@ -243,8 +247,9 @@ FeedRepository 只读取 RSS 所需最小投影，不复用文章详情或完整
 - 配置：生产必需配置不得使用可运行的默认 secret。
 - 数据库：启动时验证连接，所有查询传递 request context。
 - HTTP：配置读取、写入、空闲超时与优雅关闭。
+- CORS：按配置精确匹配 Origin，预检由根中间件直接返回 204；JWT 使用 Authorization，不启用 Cookie credentials。
 - 输入：限制 body 大小、文章正文大小、标签数量、评论长度和图片大小。
-- 日志：使用 tint 输出可读日志；内部错误保留完整 error 链，访问日志记录 request ID、业务 code 和耗时。服务端日志视为受控调试面，必须限制读取权限。
+- 日志：终端使用 tint 输出可读日志并保留完整 error 链；访问日志以 nginx 风格写入运行目录 `logs`，记录 HTTP 状态、业务 code、响应字节和耗时，按日轮转，历史 gzip 并按配置清理。访问行不记录 request ID、query、请求体、认证头或邮箱。
 - 响应：JSON 业务结果返回 HTTP 200，真实结果由 `code` 表示；RSS 返回原始 XML 并在失败时使用真实 5xx。
 - 内容安全：匿名评论在写入边界强制纯文本，输出边界兼容处理旧数据；文章原生 HTML 是明确的受信任边界，不在后端清洗。
 - 滥用防护：登录按单实例客户端 IP 固定窗口限流；可信代理头必须由 `TRUST_PROXY_HEADERS` 显式开启。
