@@ -1,0 +1,150 @@
+name: Build and publish release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run tests
+        run: go test ./...
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build and package
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="dev-${GITHUB_SHA:0:7}"
+          fi
+
+          package_name="simpleblog_${version}_${GOOS}_${GOARCH}"
+          package_dir="dist/${package_name}"
+          executable_suffix=""
+          if [[ "${GOOS}" == "windows" ]]; then
+            executable_suffix=".exe"
+          fi
+
+          mkdir -p "${package_dir}"
+          go build -trimpath -ldflags="-s -w" \
+            -o "${package_dir}/simpleblog${executable_suffix}" ./cmd/server
+          go build -trimpath -ldflags="-s -w" \
+            -o "${package_dir}/simpleblog-admin${executable_suffix}" ./cmd/admin
+
+          cp .env.example README.md "${package_dir}/"
+          cp -R migrations "${package_dir}/migrations"
+
+          if [[ "${GOOS}" == "windows" ]]; then
+            (cd dist && zip -q -r "${package_name}.zip" "${package_name}")
+            archive="dist/${package_name}.zip"
+          else
+            tar -C dist -czf "dist/${package_name}.tar.gz" "${package_name}"
+            archive="dist/${package_name}.tar.gz"
+          fi
+
+          sha256sum "${archive}" > "${archive}.sha256"
+          rm -rf "${package_dir}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: simpleblog-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          archive: false
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: simpleblog-*
+          path: release
+          merge-multiple: true
+
+      - name: Create checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release
+          sha256sum *.tar.gz *.zip > SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: SimpleBlog ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release/*.tar.gz
+            release/*.zip
+            release/*.sha256
+            release/SHA256SUMS.txt
+          fail_on_unmatched_files: true
