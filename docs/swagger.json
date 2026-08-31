@@ -1005,6 +1005,46 @@
         }
       }
     },
+    "/search": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "全文字段搜索",
+        "description": "在已发布文章的标题、摘要和正文中执行大小写不敏感的子串搜索，结果按发布时间倒序",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "description": "单行纯文本搜索词"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+            "description": "每页数量"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "分页游标"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功；业务错误也通过 JSON code 表达",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePublicPostPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/posts": {
       "get": {
         "tags": ["Public"],
@@ -1430,6 +1470,7 @@
           "slug": { "type": "string" },
           "title": { "type": "string" },
           "summary": { "type": "string" },
+          "cover_img": { "type": "string", "format": "uri", "nullable": true },
           "content": { "type": "string" },
           "tags": {
             "type": "array",
@@ -1458,6 +1499,7 @@
           "slug": { "type": "string" },
           "title": { "type": "string" },
           "summary": { "type": "string" },
+          "cover_img": { "type": "string", "format": "uri", "nullable": true },
           "tags": {
             "type": "array",
             "items": { "type": "string" }
@@ -1488,12 +1530,13 @@
       },
       "CreatePostRequest": {
         "type": "object",
-        "required": ["category_id", "slug", "title"],
+        "required": ["category_id", "slug", "title", "content"],
         "properties": {
           "category_id": { "type": "string", "format": "uuid" },
           "slug": { "type": "string" },
           "title": { "type": "string" },
           "summary": { "type": "string" },
+          "cover_img": { "type": "string", "description": "可选绝对 HTTP(S) 头图 URL；为空时从正文第一张合法 Markdown/HTML 图片自动生成" },
           "content": { "type": "string" },
           "tags": {
             "type": "array",
@@ -1508,6 +1551,7 @@
           "slug": { "type": "string" },
           "title": { "type": "string" },
           "summary": { "type": "string" },
+          "cover_img": { "type": "string", "description": "绝对 HTTP(S) 头图 URL；保存后的值为空时从最终正文回填，正文无合法图片时空字符串清除为 NULL" },
           "content": { "type": "string" },
           "tags": {
             "type": "array",
@@ -1619,6 +1663,7 @@
           "slug": { "type": "string" },
           "title": { "type": "string" },
           "summary": { "type": "string" },
+          "cover_img": { "type": "string", "format": "uri", "nullable": true },
           "tags": {
             "type": "array",
             "items": { "type": "string" }
@@ -1635,6 +1680,7 @@
           "slug": { "type": "string" },
           "title": { "type": "string" },
           "summary": { "type": "string" },
+          "cover_img": { "type": "string", "format": "uri", "nullable": true },
           "content": { "type": "string" },
           "tags": {
             "type": "array",

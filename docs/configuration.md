@@ -55,7 +55,7 @@
 
 ## 4. 站点 URL、S3 与 Gravatar
 
-`SITE_BASE_URL` 指向读者访问文章的前端站点，不是 API 地址。RSS 会生成 `{SITE_BASE_URL}/posts/{slug}`；部署前必须改成生产 HTTPS 域名。
+`SITE_BASE_URL` 指向读者访问文章的前端站点，不是 API 地址。文章 RSS 会生成 `{SITE_BASE_URL}/articles/{slug}`，评论 RSS 会在对应文章地址后追加 `#comment-{commentID}`；部署前必须改成生产 HTTPS 域名。
 
 S3 bucket 必须预先创建，并允许浏览器站点源向签名地址发送 POST。若图片需要直接展示，还要为对象配置公开读取或通过 CDN 提供读取能力。`S3_PUBLIC_BASE_URL` 只用于生成最终图片地址，不负责修改 bucket 权限。
 

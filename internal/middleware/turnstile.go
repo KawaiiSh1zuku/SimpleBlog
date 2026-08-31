@@ -15,7 +15,7 @@ func TurnstileMiddleware(
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := r.Header.Get("X-Turnstile-Token")
+			token := r.Header.Get("X-Turnstile-Response")
 
 			if token == "" {
 				response.Error(w, 401, "请求需要 Turnstile 验证")

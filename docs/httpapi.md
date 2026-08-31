@@ -19,6 +19,8 @@
 }
 ```
 
+`data` 字段始终存在；空列表为 `[]`，无业务数据或错误为 `null`。
+
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | code | int | 业务状态码，与 HTTP 状态码语义相同 |
@@ -89,6 +91,14 @@
 用户登录获取 JWT Token。
 
 **限流**: 每个 IP 每分钟最多 10 次请求。
+
+**保护**: 受 Turnstile 保护。
+
+**请求头**:
+
+| 参数                 | 类型   | 必填 | 说明                 |
+| -------------------- | ------ | ---- | -------------------- |
+| X-Turnstile-Response | string | 是   | Turnstile 验证 token |
 
 **请求体**:
 ```json
@@ -417,6 +427,7 @@
         "slug": "my-first-post",
         "title": "我的第一篇文章",
         "summary": "文章摘要...",
+        "cover_img": "https://cdn.example.com/cover.webp",
         "tags": ["Go", "Web"],
         "status": "published",
         "published_at": "2024-01-01T00:00:00Z",
@@ -440,6 +451,7 @@
   "slug": "my-first-post",
   "title": "我的第一篇文章",
   "summary": "文章摘要",
+  "cover_img": "https://cdn.example.com/cover.webp",
   "content": "文章正文内容...",
   "tags": ["Go", "Web"]
 }
@@ -451,6 +463,7 @@
 | slug | string | 是 | URL 别名（唯一） |
 | title | string | 是 | 标题 |
 | summary | string | 否 | 摘要 |
+| cover_img | string | 否 | 头图绝对 HTTP(S) URL；为空时从正文第一张合法图片自动生成 |
 | content | string | 否 | 正文 |
 | tags | string[] | 否 | 标签数组 |
 
@@ -471,6 +484,7 @@
     "slug": "my-first-post",
     "title": "我的第一篇文章",
     "summary": "文章摘要",
+    "cover_img": null,
     "content": "完整正文内容...",
     "tags": ["Go", "Web"],
     "status": "draft",
@@ -492,10 +506,13 @@
   "slug": "new-slug",
   "title": "新标题",
   "summary": "新摘要",
+  "cover_img": "",
   "content": "新内容",
   "tags": ["NewTag"]
 }
 ```
+
+保存后的 `cover_img` 为空时，后端会从最终正文自动回填；显式传 `"cover_img": ""` 且正文有图时同样会生成头图，正文无合法图片时才清除为 NULL。未传该字段时已有头图不会被正文中的图片覆盖。自动识别 Markdown `![alt](url)` 与 HTML `<img src="url">`，只接受绝对 HTTP(S) 地址。
 
 #### 3.4.5 删除文章
 
@@ -616,17 +633,17 @@
   "msg": "success",
   "data": {
     "method": "POST",
-    "object_key": "uploads/uuid-image.jpg",
+    "object_key": "blog/uploads/20260822/uuid-image.jpg",
     "upload_url": "https://s3.example.com/bucket",
     "fields": {
-      "key": "uploads/uuid-image.jpg",
+      "key": "blog/uploads/20260822/uuid-image.jpg",
       "policy": "base64...",
       "x-amz-credential": "...",
       "x-amz-algorithm": "AWS4-HMAC-SHA256",
       "x-amz-date": "20240101T000000Z",
       "x-amz-signature": "..."
     },
-    "public_url": "https://cdn.example.com/uploads/uuid-image.jpg",
+    "public_url": "https://cdn.example.com/blog/uploads/20260822/uuid-image.jpg",
     "expires_at": "2024-01-01T00:10:00Z"
   }
 }
@@ -728,6 +745,7 @@ RSS 接口返回 `application/rss+xml` 格式。
         "slug": "my-first-post",
         "title": "我的第一篇文章",
         "summary": "文章摘要",
+        "cover_img": "https://cdn.example.com/cover.webp",
         "tags": ["Go", "Web"],
         "published_at": "2024-01-01T00:00:00Z",
         "author": {
@@ -747,7 +765,19 @@ RSS 接口返回 `application/rss+xml` 格式。
 }
 ```
 
-### 5.2 获取文章详情
+`tag` 参数保留为标签精确筛选，不会被全文搜索替代。
+
+### 5.2 全文字段搜索
+
+**GET** `/search`
+
+只搜索已发布文章的标题、摘要和正文，大小写不敏感。`q` 为必填的单行纯文本（1 到 100 个 Unicode 字符）；`limit` 和 `cursor` 与文章列表相同。返回结构与 `/posts` 完全一致，按发布时间稳定倒序。
+
+```text
+/search?q=PostgreSQL&limit=20&cursor=...
+```
+
+### 5.3 获取文章详情
 
 **GET** `/posts/{slug}`
 
@@ -766,6 +796,7 @@ RSS 接口返回 `application/rss+xml` 格式。
     "slug": "my-first-post",
     "title": "我的第一篇文章",
     "summary": "文章摘要",
+    "cover_img": "https://cdn.example.com/cover.webp",
     "content": "完整正文内容...",
     "tags": ["Go", "Web"],
     "published_at": "2024-01-01T00:00:00Z",
@@ -783,7 +814,7 @@ RSS 接口返回 `application/rss+xml` 格式。
 }
 ```
 
-### 5.3 获取文章评论
+### 5.4 获取文章评论
 
 **GET** `/posts/{slug}/comments`
 
@@ -825,13 +856,14 @@ RSS 接口返回 `application/rss+xml` 格式。
 - `replies` 包含子评论数组
 - 隐藏/删除的评论会显示特殊文本，内容为空
 
-### 5.4 发表评论
+### 5.5 发表评论
 
 **POST** `/posts/{slug}/comments`
 
 需要 Turnstile 人机验证。
 
 **请求头**:
+
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | X-Turnstile-Response | string | 是 | Turnstile 验证 token |
@@ -871,7 +903,7 @@ RSS 接口返回 `application/rss+xml` 格式。
 }
 ```
 
-### 5.5 获取分类列表
+### 5.6 获取分类列表
 
 **GET** `/categories`
 
@@ -891,7 +923,7 @@ RSS 接口返回 `application/rss+xml` 格式。
 }
 ```
 
-### 5.6 获取标签列表
+### 5.7 获取标签列表
 
 **GET** `/tags`
 
@@ -906,7 +938,7 @@ RSS 接口返回 `application/rss+xml` 格式。
 }
 ```
 
-### 5.7 获取友链列表
+### 5.8 获取友链列表
 
 **GET** `/links`
 
@@ -972,6 +1004,7 @@ RSS 接口返回 `application/rss+xml` 格式。
 
 需要 Turnstile 验证的接口：
 - `POST /posts/{slug}/comments` - 发表评论
+- `POST /auth/login` - 登录
 
 前端集成方式：
 1. 在页面加载时引入 Turnstile 脚本

@@ -72,6 +72,7 @@ func TestInitialSchema(t *testing.T) {
 	}
 
 	assertPostDeleteCascadesCommentTree(t, ctx, tx)
+	assertPostCoverImageColumn(t, ctx, tx)
 	assertOptimizedIndexes(t, ctx, tx)
 }
 
@@ -79,6 +80,7 @@ func assertOptimizedIndexes(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	t.Helper()
 	for _, index := range []string{
 		"posts_updated_idx", "posts_author_updated_idx", "posts_published_tags_gin",
+		"posts_published_search_trgm_idx",
 		"posts_category_public_idx", "comments_post_created_idx", "comments_created_idx",
 		"friend_links_name_idx", "comments_visible_created_idx",
 	} {
@@ -89,6 +91,21 @@ func assertOptimizedIndexes(t *testing.T, ctx context.Context, tx pgx.Tx) {
 		if relation == nil {
 			t.Errorf("index %s was not created", index)
 		}
+	}
+}
+
+func assertPostCoverImageColumn(t *testing.T, ctx context.Context, tx pgx.Tx) {
+	t.Helper()
+	var nullable string
+	if err := tx.QueryRow(ctx, `
+		SELECT is_nullable
+		FROM information_schema.columns
+		WHERE table_schema = CURRENT_SCHEMA() AND table_name = 'posts' AND column_name = 'cover_img'
+	`).Scan(&nullable); err != nil {
+		t.Fatalf("look up posts.cover_img: %v", err)
+	}
+	if nullable != "YES" {
+		t.Fatalf("posts.cover_img is_nullable = %q, want YES", nullable)
 	}
 }
 

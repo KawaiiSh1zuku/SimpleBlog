@@ -26,6 +26,7 @@ const (
 
 type PublicPostStore interface {
 	ListPublished(context.Context, repository.ListPublishedParams) ([]model.PublicPost, error)
+	SearchPublished(context.Context, repository.SearchPublishedParams) ([]model.PublicPost, error)
 	GetPublishedBySlug(context.Context, string) (*model.PublicPost, error)
 	ListPublishedTags(context.Context) ([]string, error)
 }
@@ -44,6 +45,12 @@ type ListPublicPostsInput struct {
 	Cursor       string
 	CategorySlug string
 	Tag          string
+}
+
+type SearchPublicPostsInput struct {
+	Query  string
+	Limit  string
+	Cursor string
 }
 
 type PublicPostPage struct {
@@ -89,6 +96,32 @@ func (s *PublicService) ListPosts(ctx context.Context, input ListPublicPostsInpu
 	if err != nil {
 		return nil, mapStoreAvailability(err)
 	}
+	return buildPublicPostPage(posts, limit)
+}
+
+func (s *PublicService) SearchPosts(ctx context.Context, input SearchPublicPostsInput) (*PublicPostPage, error) {
+	query, ok := normalizePlainText(input.Query, 1, 100, false)
+	if !ok {
+		return nil, ErrInvalidInput
+	}
+	limit, err := parsePublicLimit(input.Limit)
+	if err != nil {
+		return nil, err
+	}
+	cursor, err := decodePublicCursor(input.Cursor)
+	if err != nil {
+		return nil, err
+	}
+	posts, err := s.Posts.SearchPublished(ctx, repository.SearchPublishedParams{
+		Query: query, Limit: limit + 1, Cursor: cursor,
+	})
+	if err != nil {
+		return nil, mapStoreAvailability(err)
+	}
+	return buildPublicPostPage(posts, limit)
+}
+
+func buildPublicPostPage(posts []model.PublicPost, limit int) (*PublicPostPage, error) {
 	page := &PublicPostPage{Items: posts}
 	if len(posts) <= limit {
 		return page, nil
@@ -98,13 +131,14 @@ func (s *PublicService) ListPosts(ctx context.Context, input ListPublicPostsInpu
 	if last.PublishedAt == nil {
 		return nil, errors.New("published post has no published_at")
 	}
-	page.NextCursor, err = encodePublicCursor(repository.PublishedCursor{
+	nextCursor, err := encodePublicCursor(repository.PublishedCursor{
 		PublishedAt: *last.PublishedAt,
 		ID:          last.ID,
 	})
 	if err != nil {
 		return nil, err
 	}
+	page.NextCursor = nextCursor
 	return page, nil
 }
 

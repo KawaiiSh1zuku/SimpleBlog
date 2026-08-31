@@ -30,6 +30,18 @@ func (h *PublicHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, dto.NewPublicPostPageResponse(page.Items, page.NextCursor))
 }
 
+func (h *PublicHandler) SearchPosts(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	page, err := h.Public.SearchPosts(r.Context(), service.SearchPublicPostsInput{
+		Query: query.Get("q"), Limit: query.Get("limit"), Cursor: query.Get("cursor"),
+	})
+	if err != nil {
+		writeServiceError(w, r, err)
+		return
+	}
+	response.Success(w, dto.NewPublicPostPageResponse(page.Items, page.NextCursor))
+}
+
 func (h *PublicHandler) GetPost(w http.ResponseWriter, r *http.Request) {
 	post, err := h.Public.GetPost(r.Context(), chi.URLParam(r, "slug"))
 	if err != nil {

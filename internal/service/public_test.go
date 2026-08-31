@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,15 +14,20 @@ import (
 )
 
 type publicPostStoreStub struct {
-	posts  []model.PublicPost
-	post   *model.PublicPost
-	tags   []string
-	err    error
-	params repository.ListPublishedParams
+	posts        []model.PublicPost
+	post         *model.PublicPost
+	tags         []string
+	err          error
+	params       repository.ListPublishedParams
+	searchParams repository.SearchPublishedParams
 }
 
 func (stub *publicPostStoreStub) ListPublished(_ context.Context, params repository.ListPublishedParams) ([]model.PublicPost, error) {
 	stub.params = params
+	return stub.posts, stub.err
+}
+func (stub *publicPostStoreStub) SearchPublished(_ context.Context, params repository.SearchPublishedParams) ([]model.PublicPost, error) {
+	stub.searchParams = params
 	return stub.posts, stub.err
 }
 func (stub *publicPostStoreStub) GetPublishedBySlug(context.Context, string) (*model.PublicPost, error) {
@@ -82,6 +88,39 @@ func TestPublicServiceValidatesPaginationAndFilters(t *testing.T) {
 	} {
 		if _, err := service.ListPosts(context.Background(), input); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("ListPosts(%+v) error = %v", input, err)
+		}
+	}
+}
+
+func TestPublicServiceSearchNormalizesQueryAndUsesStablePagination(t *testing.T) {
+	publishedAt := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	store := &publicPostStoreStub{posts: []model.PublicPost{{
+		Post: model.Post{ID: uuid.New(), PublishedAt: &publishedAt},
+	}}}
+	service := NewPublicService(store, publicCategoryStoreStub{})
+	page, err := service.SearchPosts(context.Background(), SearchPublicPostsInput{
+		Query: "  PostgreSQL' OR 1=1 --  ", Limit: "10",
+	})
+	if err != nil {
+		t.Fatalf("SearchPosts() error = %v", err)
+	}
+	if len(page.Items) != 1 || store.searchParams.Query != "PostgreSQL' OR 1=1 --" || store.searchParams.Limit != 11 {
+		t.Fatalf("search page/params = %+v, %+v", page, store.searchParams)
+	}
+}
+
+func TestPublicServiceSearchRejectsInvalidInput(t *testing.T) {
+	service := NewPublicService(&publicPostStoreStub{}, publicCategoryStoreStub{})
+	for _, input := range []SearchPublicPostsInput{
+		{},
+		{Query: "<script>"},
+		{Query: "line\nbreak"},
+		{Query: strings.Repeat("x", 101)},
+		{Query: "valid", Limit: "0"},
+		{Query: "valid", Cursor: "not-base64"},
+	} {
+		if _, err := service.SearchPosts(context.Background(), input); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("SearchPosts(%+v) error = %v", input, err)
 		}
 	}
 }

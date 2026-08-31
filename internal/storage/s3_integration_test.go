@@ -39,7 +39,7 @@ func TestS3SignerRealUploadAndPublicRead(t *testing.T) {
 	if err := signer.client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{Region: region}); err != nil {
 		t.Fatalf("MakeBucket() error = %v", err)
 	}
-	objectKey := "posts/integration/pixel.gif"
+	objectKey := "blog/uploads/20260822/pixel.gif"
 	defer func() {
 		_ = signer.client.RemoveObject(context.Background(), bucket, objectKey, minio.RemoveObjectOptions{})
 		_ = signer.client.RemoveBucket(context.Background(), bucket)

@@ -52,7 +52,7 @@ func (h *PostHandler) Create(w http.ResponseWriter, r *http.Request) {
 	actor, _ := appmiddleware.CurrentUser(r.Context())
 	post, err := h.Posts.Create(r.Context(), actor, service.CreatePostInput{
 		CategoryID: request.CategoryID, Slug: request.Slug, Title: request.Title,
-		Summary: request.Summary, Content: request.Content, Tags: request.Tags,
+		Summary: request.Summary, CoverImg: request.CoverImg, Content: request.Content, Tags: request.Tags,
 	})
 	if err != nil {
 		writeServiceError(w, r, err)
@@ -73,7 +73,7 @@ func (h *PostHandler) Update(w http.ResponseWriter, r *http.Request) {
 	actor, _ := appmiddleware.CurrentUser(r.Context())
 	post, err := h.Posts.Update(r.Context(), actor, id, service.UpdatePostInput{
 		CategoryID: request.CategoryID, Slug: request.Slug, Title: request.Title,
-		Summary: request.Summary, Content: request.Content, Tags: request.Tags,
+		Summary: request.Summary, CoverImg: request.CoverImg, Content: request.Content, Tags: request.Tags,
 	})
 	if err != nil {
 		writeServiceError(w, r, err)

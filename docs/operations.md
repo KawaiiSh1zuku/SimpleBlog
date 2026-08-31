@@ -61,7 +61,7 @@ GET /service/ping
 GET /service/test_turnstile
 ```
 
-`/service/ping` 是轻量存活端点，不执行数据库查询，因此不能替代数据库就绪检查。`/service/test_turnstile` 需要 `X-Turnstile-Token`，仅用于验证当前 Turnstile 配置。
+`/service/ping` 是轻量存活端点，不执行数据库查询，因此不能替代数据库就绪检查。`/service/test_turnstile` 需要 `X-Turnstile-Response`，仅用于验证当前 Turnstile 配置。
 
 ## 6. 反向代理
 
@@ -73,7 +73,7 @@ GET /service/test_turnstile
 CORS_ALLOWED_ORIGINS=https://blog.example.com,https://admin.example.com
 ```
 
-服务端允许 GET、HEAD、POST、PATCH、DELETE、OPTIONS，并允许浏览器预检 `Authorization`、`Content-Type` 与 `X-Turnstile-Token`。JWT 从 `Authorization` 读取，因此 CORS 不启用 Cookie credentials。开发默认允许 Vite 的 `localhost:5173` 和 `127.0.0.1:5173`。
+服务端允许 GET、HEAD、POST、PATCH、DELETE、OPTIONS，并允许浏览器预检 `Authorization`、`Content-Type` 与 `X-Turnstile-Response`。JWT 从 `Authorization` 读取，因此 CORS 不启用 Cookie credentials。开发默认允许 Vite 的 `localhost:5173` 和 `127.0.0.1:5173`。
 
 JSON 业务响应始终写成 HTTP 200，因此代理监控应解析 body `code` 或使用结构化访问日志中的 `business_code`。RSS 端点是例外，失败会返回真实 HTTP 5xx，可按标准状态监控。
 

@@ -4,7 +4,7 @@ import "net/http"
 
 const (
 	corsAllowedMethods = "GET, HEAD, POST, PATCH, DELETE, OPTIONS"
-	corsAllowedHeaders = "Accept, Authorization, Content-Type, X-Turnstile-Token"
+	corsAllowedHeaders = "Accept, Authorization, Content-Type, X-Turnstile-Response"
 )
 
 // CORS allows browser API requests only from explicitly configured origins.

@@ -23,6 +23,8 @@ friend_links            (独立站点资源)
 
 标签是 `posts.tags TEXT[]`，不是独立实体。
 
+文章头图是 `posts.cover_img TEXT NULL`，只保存经过 service 校验的绝对 HTTP(S) URL；图片对象本身仍由 S3 兼容服务保存。
+
 ## 3. 初始 Schema
 
 ```sql
@@ -256,7 +258,14 @@ RSS 不单独建表，只查询已有 published posts 与 visible comments。`co
 - `comments_created_idx (created_at DESC, id DESC)`：后台评论 keyset 列表。
 - `comments_visible_created_idx (created_at DESC, id DESC) WHERE status = 'visible'`：评论 RSS。
 - `friend_links_name_idx (LOWER(name), id)`：友情链接稳定排序。
+- `posts_published_search_trgm_idx`：只索引 published 文章的 title、summary、content 拼接文本，支持中英文大小写不敏感子串搜索。
 
 公开文章列表和后台文章列表不读取 `content`；只有详情接口读取 Markdown + LaTeX 正文。除登录查询外，用户查询不读取 `password_hash`。全部外部输入通过 pgx 参数传入，动态查询只拼接服务端固定 SQL 片段和占位符。
 
 代表性数据量、`EXPLAIN (ANALYZE, BUFFERS)` 结果与复现方法见 [PostgreSQL 优化记录](postgresql-optimization.md)。
+
+## 8. M9 文章头图与全文字段搜索迁移
+
+`000004_post_cover_search.sql` 启用 `pg_trgm`，为 `posts` 增加可空 `cover_img TEXT`，并建立 published-only 的 trigram 表达式 GIN 索引。搜索 SQL 的外部查询词始终通过 pgx 参数传入；动态部分只包含服务端固定的游标条件和占位符编号。
+
+迁移账号必须拥有在目标数据库执行 `CREATE EXTENSION pg_trgm` 的权限。应用运行账号不需要创建扩展或表的权限；推荐仍由独立部署账号执行 migration。

@@ -31,6 +31,7 @@ type PublicPostListItem struct {
 	Slug        string                        `json:"slug"`
 	Title       string                        `json:"title"`
 	Summary     string                        `json:"summary"`
+	CoverImg    *string                       `json:"cover_img"`
 	Tags        []string                      `json:"tags"`
 	PublishedAt *time.Time                    `json:"published_at"`
 	Author      PublicAuthorResponse          `json:"author"`
@@ -54,7 +55,7 @@ func NewPublicPostListItem(post *model.PublicPost) PublicPostListItem {
 	}
 	return PublicPostListItem{
 		ID: post.ID, Slug: post.Slug, Title: post.Title, Summary: post.Summary,
-		Tags: tags, PublishedAt: post.PublishedAt,
+		CoverImg: post.CoverImg, Tags: tags, PublishedAt: post.PublishedAt,
 		Author: PublicAuthorResponse{
 			ID: post.AuthorID, Nickname: post.AuthorNickname, AvatarURL: post.AuthorAvatarURL,
 		},

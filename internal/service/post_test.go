@@ -74,7 +74,8 @@ func TestPostServiceCreateFixesAuthorAndNormalizesTags(t *testing.T) {
 	service := NewPostService(store)
 	created, err := service.Create(context.Background(), actor, CreatePostInput{
 		CategoryID: uuid.New(), Slug: " First-Post ", Title: " First ",
-		Content: "Markdown $x^2$", Tags: []string{" Go ", "go", "LaTeX", ""},
+		CoverImg: " https://cdn.example.com/cover.webp ",
+		Content:  "Markdown $x^2$", Tags: []string{" Go ", "go", "LaTeX", ""},
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -85,8 +86,90 @@ func TestPostServiceCreateFixesAuthorAndNormalizesTags(t *testing.T) {
 	if created.Slug != "first-post" || !reflect.DeepEqual(created.Tags, []string{"go", "latex"}) {
 		t.Fatalf("Create() normalized values = %+v", created)
 	}
+	if created.CoverImg == nil || *created.CoverImg != "https://cdn.example.com/cover.webp" {
+		t.Fatalf("Create() cover image = %v", created.CoverImg)
+	}
 	if _, err := service.Create(context.Background(), actor, CreatePostInput{}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("invalid Create() error = %v", err)
+	}
+}
+
+func TestPostServiceCreateDerivesCoverImageFromContent(t *testing.T) {
+	actor := &model.User{ID: uuid.New(), Role: model.RoleContributor}
+	store := &postStoreStub{}
+	service := NewPostService(store)
+	created, err := service.Create(context.Background(), actor, CreatePostInput{
+		CategoryID: uuid.New(), Slug: "post-with-image", Title: "Post",
+		Content: "![cover](https://cdn.example.com/from-content.webp)",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if created.CoverImg == nil || *created.CoverImg != "https://cdn.example.com/from-content.webp" {
+		t.Fatalf("Create() cover image = %v", created.CoverImg)
+	}
+}
+
+func TestPostServiceValidatesAndClearsCoverImage(t *testing.T) {
+	actor := &model.User{ID: uuid.New(), Role: model.RoleContributor}
+	post := &model.Post{
+		ID: uuid.New(), AuthorID: actor.ID, Status: model.PostStatusDraft,
+		Content: `![cover](https://cdn.example.com/from-content.webp)`,
+	}
+	store := &postStoreStub{post: post}
+	service := NewPostService(store)
+
+	invalidURL := "javascript:alert(1)"
+	if _, err := service.Update(context.Background(), actor, post.ID, UpdatePostInput{CoverImg: &invalidURL}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Update(invalid cover) error = %v", err)
+	}
+	empty := ""
+	if _, err := service.Update(context.Background(), actor, post.ID, UpdatePostInput{CoverImg: &empty}); err != nil {
+		t.Fatalf("Update(derive cover from explicit empty) error = %v", err)
+	}
+	if store.updated.CoverImg == nil || *store.updated.CoverImg != "https://cdn.example.com/from-content.webp" {
+		t.Fatalf("Update(derive cover from explicit empty) params = %+v", store.updated)
+	}
+	post.Content = "content without images"
+	if _, err := service.Update(context.Background(), actor, post.ID, UpdatePostInput{CoverImg: &empty}); err != nil {
+		t.Fatalf("Update(clear cover without images) error = %v", err)
+	}
+	if store.updated.CoverImg == nil || *store.updated.CoverImg != "" {
+		t.Fatalf("Update(clear cover without images) params = %+v", store.updated)
+	}
+}
+
+func TestPostServiceUpdateDerivesCoverOnlyWhenExistingCoverIsEmpty(t *testing.T) {
+	actor := &model.User{ID: uuid.New(), Role: model.RoleContributor}
+	post := &model.Post{
+		ID: uuid.New(), AuthorID: actor.ID, Status: model.PostStatusDraft,
+		Content: `<img src="https://cdn.example.com/existing-content.png">`,
+	}
+	store := &postStoreStub{post: post}
+	service := NewPostService(store)
+	title := "Updated"
+	if _, err := service.Update(context.Background(), actor, post.ID, UpdatePostInput{Title: &title}); err != nil {
+		t.Fatalf("Update(derive cover) error = %v", err)
+	}
+	if store.updated.CoverImg == nil || *store.updated.CoverImg != "https://cdn.example.com/existing-content.png" {
+		t.Fatalf("Update(derive cover) params = %+v", store.updated)
+	}
+
+	existingCover := "https://cdn.example.com/manual.png"
+	post.CoverImg = &existingCover
+	newContent := `![new](https://cdn.example.com/new.png)`
+	empty := ""
+	if _, err := service.Update(context.Background(), actor, post.ID, UpdatePostInput{Content: &newContent}); err != nil {
+		t.Fatalf("Update(preserve cover) error = %v", err)
+	}
+	if store.updated.CoverImg != nil {
+		t.Fatalf("Update(preserve cover) params = %+v", store.updated)
+	}
+	if _, err := service.Update(context.Background(), actor, post.ID, UpdatePostInput{CoverImg: &empty, Content: &newContent}); err != nil {
+		t.Fatalf("Update(replace empty cover from content) error = %v", err)
+	}
+	if store.updated.CoverImg == nil || *store.updated.CoverImg != "https://cdn.example.com/new.png" {
+		t.Fatalf("Update(replace empty cover from content) params = %+v", store.updated)
 	}
 }
 

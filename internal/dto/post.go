@@ -14,6 +14,7 @@ type PostResponse struct {
 	Slug        string           `json:"slug"`
 	Title       string           `json:"title"`
 	Summary     string           `json:"summary"`
+	CoverImg    *string          `json:"cover_img"`
 	Content     string           `json:"content"`
 	Tags        []string         `json:"tags"`
 	Status      model.PostStatus `json:"status"`
@@ -27,6 +28,7 @@ type CreatePostRequest struct {
 	Slug       string    `json:"slug"`
 	Title      string    `json:"title"`
 	Summary    string    `json:"summary"`
+	CoverImg   string    `json:"cover_img"`
 	Content    string    `json:"content"`
 	Tags       []string  `json:"tags"`
 }
@@ -36,6 +38,7 @@ type UpdatePostRequest struct {
 	Slug       *string    `json:"slug"`
 	Title      *string    `json:"title"`
 	Summary    *string    `json:"summary"`
+	CoverImg   *string    `json:"cover_img"`
 	Content    *string    `json:"content"`
 	Tags       *[]string  `json:"tags"`
 }
@@ -47,6 +50,7 @@ type ManagedPostListItem struct {
 	Slug        string           `json:"slug"`
 	Title       string           `json:"title"`
 	Summary     string           `json:"summary"`
+	CoverImg    *string          `json:"cover_img"`
 	Tags        []string         `json:"tags"`
 	Status      model.PostStatus `json:"status"`
 	PublishedAt *time.Time       `json:"published_at"`
@@ -67,7 +71,7 @@ func NewPostResponse(post *model.Post) PostResponse {
 	return PostResponse{
 		ID: post.ID, AuthorID: post.AuthorID, CategoryID: post.CategoryID,
 		Slug: post.Slug, Title: post.Title, Summary: post.Summary, Content: post.Content,
-		Tags: tags, Status: post.Status, PublishedAt: post.PublishedAt,
+		CoverImg: post.CoverImg, Tags: tags, Status: post.Status, PublishedAt: post.PublishedAt,
 		CreatedAt: post.CreatedAt, UpdatedAt: post.UpdatedAt,
 	}
 }
@@ -90,7 +94,7 @@ func NewManagedPostPageResponse(posts []model.PostSummary, nextCursor string) Ma
 		}
 		items = append(items, ManagedPostListItem{
 			ID: post.ID, AuthorID: post.AuthorID, CategoryID: post.CategoryID,
-			Slug: post.Slug, Title: post.Title, Summary: post.Summary, Tags: tags,
+			Slug: post.Slug, Title: post.Title, Summary: post.Summary, CoverImg: post.CoverImg, Tags: tags,
 			Status: post.Status, PublishedAt: post.PublishedAt,
 			CreatedAt: post.CreatedAt, UpdatedAt: post.UpdatedAt,
 		})

@@ -9,9 +9,9 @@ import (
 // Response 定义统一的响应结构体
 // 使用泛型 T 来约束 Data 字段的类型，保证 Handler 返回的数据结构清晰
 type Response[T any] struct {
-	Code int    `json:"code"`           // 业务状态码，与 HTTP 状态码标准相同
-	Msg  string `json:"msg"`            // 提示信息
-	Data T      `json:"data,omitempty"` // 业务数据，omitempty 表示 data 为空时忽略此字段
+	Code int    `json:"code"` // 业务状态码，与 HTTP 状态码标准相同
+	Msg  string `json:"msg"`  // 提示信息
+	Data T      `json:"data"` // 始终输出，保证前端响应结构稳定
 }
 
 // JSON 输出统一响应。应用层业务结果始终使用 HTTP 200，真实状态由 code 表示。

@@ -68,7 +68,7 @@
 - contributor 不能通过更新 DTO 修改 author_id。
 - admin 可以管理全部文章，但第一版不提供作者转移功能；需要时应设计独立动作。
 - 分类是全局资源，只允许 admin 管理。
-- contributor 可以为自己的文章选择现有分类并维护 tags。
+- contributor 可以为自己的文章选择现有分类、维护 tags 和设置/清除 cover_img。
 
 ## 6. 评论权限规则
 
@@ -82,7 +82,7 @@
 ## 7. S3 权限规则
 
 - 只有已登录且未删除的 admin/contributor 可以申请预签名地址。
-- 服务端生成 object key，并把用户 ID 放入对象路径。
+- 服务端生成 `blog/uploads/YYYYMMDD/{uuid}.{ext}` object key，不把客户端文件名或用户输入放入路径。
 - 客户端不能指定 bucket、凭据或任意路径。
 - 签名必须限制有效期、Content-Type 和文件大小能力范围。
 - 任何 S3 access key、secret key 和完整签名 URL 都不得写入日志。

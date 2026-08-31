@@ -66,6 +66,8 @@ go test ./internal/storage -run TestS3SignerRealUploadAndPublicRead -count=1 -v
 
 - 所有应用业务结果为 HTTP 200，真实结果位于 body `code`。
 - 公开文章不出现 draft，列表不读取或返回正文。
+- `/posts?tag=` 继续精确筛选标签；`/search` 只搜索 published 文章的 title/summary/content，并保持稳定游标分页。
+- cover_img 只接受绝对 HTTP(S) URL；创建或更新后的值为空会从 Markdown/HTML 正文首张合法图片回填，显式空字符串在正文有图时也会回填、无图时清除为 NULL，未传字段时已有头图不覆盖，所有文章 DTO 都返回 nullable 字段。
 - contributor 不能管理他人文章或评论。
 - 最后一个 admin 不能被删除或降级，并发操作仍保持至少一个 admin。
 - 公开评论响应不出现邮箱；头像 URL 可由配置镜像生成。

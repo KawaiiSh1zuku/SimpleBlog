@@ -126,3 +126,55 @@
 
 - 根据实际登录日志定位到组合根把 JWT_SECRET string 传给 HS256 signer；已改为 []byte 并增加真实 Encode/Verify 回归测试。
 - 修复最终通过 `gofmt`、`go vet ./...`、`go test ./...`、`go test -race ./...` 与 `go build ./...`；暂未提交。
+
+## 2026-08-22 文章头图与全文搜索
+
+- 已按 planning-with-files-zh 恢复规划文件并检查中断状态；中断前没有留下 cover_img/search 半成品。
+- 用户最终要求保留标签筛选；确定新增独立 `/search`，搜索 published 文章的标题、摘要和正文，使用稳定公开游标。
+- 确定 cover_img 为 nullable TEXT/*string，空字符串用于后台 PATCH 清除，非空校验绝对 HTTP(S) URL。
+- 已新增 `000004_post_cover_search.sql`：启用 `pg_trgm`、增加 nullable `posts.cover_img`、建立 published-only trigram 表达式 GIN 索引。
+- 已贯通 model/dto/handler/service/repository 的 cover_img 创建、查询、列表、更新和清除语义；公开与后台响应统一返回 nullable 字段。
+- 已新增公开 `GET /search?q=&limit=&cursor=`，只检索 published 文章的 title/summary/content，保留 `/posts?tag=` 精确筛选并复用公开稳定游标。
+- 搜索 SQL 使用 pgx 参数绑定，并把 `%`、`_`、反斜杠按 LIKE 字面量转义，避免查询词扩大匹配范围。
+- 已同步 API、HTTP API、OpenAPI、架构、数据库、权限、测试、PostgreSQL 优化和 migration 文档。
+- 本地 PostgreSQL 随机 schema 的 migration 与 repository 集成测试通过：cover_img 写入/NULL 清除、草稿隔离、全文字段匹配、LIKE 通配符防护及标签筛选均已验证。
+- 最终通过带真实 PostgreSQL 的 `go test ./... -count=1`、`go vet ./...`、Swagger JSON 解析与 `git diff --check`；按用户要求未提交。
+
+## 2026-08-22 正文首图自动头图
+
+- 已比较完整 Markdown AST 依赖与窄范围提取器；选择标准 HTML tokenizer + 常用 Markdown 内联图片提取，不增加完整渲染依赖。
+- 已确定创建、更新、显式清除、已有头图和非法图片 URL 的行为边界，开始实现 service 与测试。
+- 已新增 `post_image.go`：按正文顺序提取 Markdown 内联图片与 HTML img/src，屏蔽 fenced/inline code，并复用 cover URL 安全校验。
+- 已接入 PostService 创建和更新流程；保存后空值自动回填、正文无图时清除、未传字段保留已有头图的定向测试已覆盖。
+- `golang.org/x/net/html` 原本已在依赖树中，`go mod tidy` 仅将其提升为直接依赖；没有引入完整 Markdown 渲染框架。
+- 已同步 API、HTTP API、架构、OpenAPI 与测试文档，等待全仓质量门禁。
+- 最终语义复核纠正了“显式空字符串不回填”的先前假设：按用户原文改为任何保存后的空 cover 均尝试提取，正文无图时才清除为 NULL，并补充对应测试与文档。
+- 首次语义调整测试因跨函数引用 `empty` 局部变量而编译失败；已定位为测试夹具作用域问题并在当前测试中定义该值。
+- 首次修复补丁因 hunk 分隔格式无效而未应用；读取精确上下文后拆分重试，未造成部分文件修改。
+- 阶段 22 最终通过带真实 PostgreSQL 的 `go test ./... -count=1`、`go test -race ./internal/service`、`go build ./...`、`go vet ./...`、`go mod verify`、Swagger JSON 解析与 `git diff --check`；未提交。
+
+## 2026-08-29 Mock 服务
+
+- 已读取 planning-with-files-zh 规则并恢复既有规划文件；将本次任务追加为阶段 23，没有覆盖既有计划。
+- 已检查 Git 状态，确认仓库存在用户的未提交 API、模型、服务、测试与文档改动；后续保持这些改动原样。
+- 已核对当前 router、DTO、model、response 及 `docs/httpapi.md` 路由清单，确认状态集合和统一 HTTP 200 JSON envelope。
+- 已比较生产服务替换存储层与独立内存服务两条路径，选择 `/mock` 独立零依赖 Go 服务，下一步确定端点覆盖和可变更行为。
+- 已确认实现覆盖清单：全部主要公开/认证/后台/RSS/service 路由；后台写操作在内存中生效，重启重置。
+- 已确定种子分布：10 篇文章分别 0..9 条评论，共 45 条，覆盖全部文章/评论/角色状态以及 cover/tags/嵌套评论差异。
+- 已核对生产权限与状态转换语义，mock 将保留 contributor 作者隔离、admin 专属资源和冲突错误行为。
+- 已询问用户是否同步根 README 与 `docs/testing.md`；等待答复期间只编写 `/mock/README.md`，不修改现有文档。
+- 已创建 `/mock` 程序骨架、带锁内存 store 和固定种子；文章按稳定 UUID 映射 0..9 条评论，避免展示排序影响数量分布。
+- 已接入公开、认证和后台资源路由：统一 envelope、CORS、Turnstile mock、静态/动态 token、分页、筛选、搜索、评论树及用户/分类/友链 CRUD。
+- 已接入文章/评论后台操作：作者隔离、创建更新删除、发布撤回、评论隐藏显示软删除及冲突状态检查。
+- 已接入 RSS 与假 S3 POST 流程；预签名返回可提交的本机 `/mock-upload`，公开 URL 使用稳定可显示的测试图源。
+- 首次 gofmt 发现 `deleteLink` 的 for 循环缺少闭合花括号；已读取报错上下文并定点修正，未重复失败命令。
+- 修正后 `/mock` 全部 Go 文件已通过 gofmt，`go test ./mock` 编译通过；当前尚未加入行为测试。
+- 已新增 5 组 httptest 行为测试并通过：种子状态/数量、公开隔离与评论脱敏、认证权限、发布转换、分页搜索 RSS 与预签名。
+- 为消除外部图片依赖，开始把 cover/avatar/favicon 与上传 public_url 改为本机动态 PNG 资源端点。
+- 本机动态 PNG 已完成并通过定向测试；所有种子展示资源不再依赖外网。
+- 首次真实 HTTP 脚本中 `localhost` 的公开列表连接被重置，但日志无 panic、服务保持监听，随后 `127.0.0.1` 单独请求稳定返回 HTTP 200 和 7 篇公开文章；继续执行严格 smoke 排除瞬态。
+- 第二次新 PowerShell 进程的首个本机请求仍被重置；检查确认 all_proxy/http_proxy/https_proxy 指向本机 7890，属于验证客户端代理路径。
+- 改用 `curl.exe --noproxy '*'` 后严格 smoke 全部通过：ping code 200、公开文章 7、后台文章 10、友链 5、admin token 正确、RSS 为 200 XML、PNG 为 200 且 8511 bytes。
+- 最终态重新通过 `go test ./... -count=1`、`go test -race ./mock -count=1`、`go vet ./...`、`go build ./...`、mock gofmt 差异检查与 `git diff --check`。
+- 阶段 23 完成；mock 服务继续在 `http://localhost:8090` 后台运行，进程重启即可恢复固定种子。
+- planning-with-files 完成脚本最初无法识别既有表格计划（0/0）；已为阶段 23 追加兼容的 `### 阶段`/`**状态：** complete` 状态块，不改写历史阶段。

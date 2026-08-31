@@ -197,7 +197,11 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 
 文章 slug 由客户端显式提供，服务端统一转为小写并限制为字母、数字和单连字符；不从标题自动生成拼音或转写。标签在 service 中 trim、转小写、去空、去重并保序，最多 10 个且每项最多 30 个 Unicode 字符。
 
-公开读取使用独立的 published-only repository 方法，不能复用后台无状态过滤的查询。列表按 `(published_at, id)` 倒序并使用不透明游标分页；列表 DTO 省略正文，详情 DTO 才包含 Markdown + LaTeX 原文。
+公开读取使用独立的 published-only repository 方法，不能复用后台无状态过滤的查询。列表按 `(published_at, id)` 倒序并使用不透明游标分页；列表 DTO 省略正文，详情 DTO 才包含 Markdown + LaTeX 原文。可空的 `cover_img` 保存头图绝对 URL，并同时出现在后台与公开文章 DTO 中。
+
+头图回填属于 PostService 的保存规则：创建或更新保存后的 cover 为空时，从最终正文提取；前端显式提交空字符串也遵循该规则。只有正文没有合法图片时，空字符串才会清除为 NULL。未提交 cover_img 时保留已有手动/自动头图，不因正文更新覆盖。提取器按文档顺序识别 Markdown 内联图片和 HTML img/src，屏蔽 fenced/inline code，并复用外部 URL 校验，因此不需要 repository 解析正文或新增数据库字段。
+
+按标签筛选继续由 `/posts?tag=` 和 `TEXT[]` 的部分 GIN 索引承担。全文字段搜索独立为 `/search`，repository 只检索 published 文章的 title、summary、content；考虑中文、Markdown 和 LaTeX 内容，使用 `pg_trgm` 表达式 GIN 索引支持大小写不敏感的子串查询，不依赖 PostgreSQL 默认语言词典。搜索与公开列表复用 `(published_at, id)` 游标，因此排序稳定且不会引入相关度游标状态。
 
 如果以后要求管理员审核 contributor 文章，应显式增加 `pending_review` 状态，而不是复用 draft。
 
@@ -230,7 +234,7 @@ CLI 仅在当前不存在有效 admin 时成功；密码必须为 10 到 72 字�
 4. 前端以 multipart/form-data 直接把图片 POST 到 S3。
 5. 前端把 public URL 插入 Markdown 正文。
 
-第一版不建立 uploads 表。对象路径由服务端生成，客户端不能指定 bucket 或任意 key。用于正文的 Bucket 应提供公开或 CDN 读取地址。
+第一版不建立 uploads 表。对象 key 固定为 `blog/uploads/YYYYMMDD/{uuid}.{ext}`，日期使用服务进程本地时区，扩展名由 MIME 决定；客户端不能指定 bucket 或任意 key。用于正文的 Bucket 应提供公开或 CDN 读取地址。
 
 首版只允许 JPEG、PNG、WebP、GIF，单文件最大 10 MiB。实现使用 S3 POST policy，而不是预签名 PUT：policy 在对象存储侧约束精确 MIME、客户端声明的精确字节数、bucket、key 和 10 分钟有效期，Go 服务不接收文件内容。
 
@@ -285,7 +289,7 @@ FeedRepository 只读取 RSS 所需最小投影，不复用文章详情或完整
 
 ### 阶段 4：公开文章 API
 
-- 实现文章列表、详情、分类筛选、标签筛选和分页。
+- 实现文章列表、详情、分类筛选、标签筛选、全文字段搜索和分页。
 - 公开文章使用 slug，后台管理使用 UUID。
 
 ### 阶段 5：多级评论

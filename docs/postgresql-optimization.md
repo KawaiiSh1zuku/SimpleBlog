@@ -46,6 +46,7 @@ M6 针对实际 API 查询优化 PostgreSQL 访问，重点检查：索引与筛
 - 评论树一次读取文章全部节点并在内存中组装，不按层级查询，因此不产生 N+1。
 - contributor 评论列表先物化其文章集合，再以 LATERAL 查询命中逐文章评论索引；代表性数据下避免了原计划扫描约 5,001 条全站评论并进行同数量文章主键查找。
 - SQL 值全部通过 pgx 参数传递；可选条件只拼接服务端固定片段和编号占位符。
+- 全文字段搜索针对中文、Markdown 与 LaTeX 使用 published-only 的 `pg_trgm` 表达式 GIN 索引；查询词仍通过 `$1` 绑定，结果按 `(published_at, id)` 稳定分页。该查询的生产数据分布与耗时需要在部署后通过 `EXPLAIN (ANALYZE, BUFFERS)` 和 `pg_stat_statements` 单独复核，不能套用上表的 M6 测量值。
 - M8 注入回归把 `x'); DROP TABLE friend_links; --` 作为友情链接字段写入并原样读回，表仍存在；这验证 repository 使用参数绑定，而不是依赖字符过滤。
 
 ## 5. 事务、错误与可观测性

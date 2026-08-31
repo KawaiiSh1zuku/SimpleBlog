@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/model"
@@ -20,6 +21,7 @@ type UpdatePostParams struct {
 	Slug       *string
 	Title      *string
 	Summary    *string
+	CoverImg   *string
 	Content    *string
 	Tags       *[]string
 }
@@ -45,6 +47,12 @@ type ListPublishedParams struct {
 	CategorySlug string
 	Tag          string
 	Cursor       *PublishedCursor
+}
+
+type SearchPublishedParams struct {
+	Query  string
+	Limit  int
+	Cursor *PublishedCursor
 }
 
 func NewPostRepository(db *pgxpool.Pool) *PostRepository { return &PostRepository{DB: db} }
@@ -127,6 +135,41 @@ func (r *PostRepository) ListPublished(ctx context.Context, params ListPublished
 	return posts, nil
 }
 
+func (r *PostRepository) SearchPublished(ctx context.Context, params SearchPublishedParams) ([]model.PublicPost, error) {
+	query := publicPostListSelect + `
+		WHERE p.status = 'published'
+		  AND LOWER(p.title || ' ' || COALESCE(p.summary, '') || ' ' || p.content)
+		      LIKE '%' || LOWER($1) || '%' ESCAPE '\'`
+	args := []any{escapeLikePattern(params.Query)}
+	if params.Cursor != nil {
+		query += " AND (p.published_at, p.id) < ($2, $3)"
+		args = append(args, params.Cursor.PublishedAt, params.Cursor.ID)
+	}
+	query += fmt.Sprintf(" ORDER BY p.published_at DESC, p.id DESC LIMIT $%d", len(args)+1)
+	args = append(args, params.Limit)
+
+	rows, err := r.DB.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	posts := make([]model.PublicPost, 0)
+	for rows.Next() {
+		post, err := scanPublicPostList(rows)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, *post)
+	}
+	return posts, rows.Err()
+}
+
+func escapeLikePattern(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `%`, `\%`)
+	return strings.ReplaceAll(value, `_`, `\_`)
+}
+
 func (r *PostRepository) GetPublishedBySlug(ctx context.Context, slug string) (*model.PublicPost, error) {
 	return scanPublicPostDetail(r.DB.QueryRow(ctx, publicPostDetailSelect+`
 		WHERE p.status = 'published' AND LOWER(p.slug) = LOWER($1)
@@ -161,11 +204,11 @@ func (r *PostRepository) ListPublishedTags(ctx context.Context) ([]string, error
 
 func (r *PostRepository) Create(ctx context.Context, post *model.Post) (*model.Post, error) {
 	return scanPost(r.DB.QueryRow(ctx, `
-		INSERT INTO posts (id, author_id, category_id, slug, title, summary, content, tags, status)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7, $8, 'draft')
+		INSERT INTO posts (id, author_id, category_id, slug, title, summary, cover_img, content, tags, status)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7, $8, $9, 'draft')
 		RETURNING id, author_id, category_id, slug, title, COALESCE(summary, ''),
-		          content, tags, status, published_at, created_at, updated_at
-	`, post.ID, post.AuthorID, post.CategoryID, post.Slug, post.Title, post.Summary, post.Content, post.Tags))
+		          cover_img, content, tags, status, published_at, created_at, updated_at
+	`, post.ID, post.AuthorID, post.CategoryID, post.Slug, post.Title, post.Summary, post.CoverImg, post.Content, post.Tags))
 }
 
 func (r *PostRepository) Update(ctx context.Context, id uuid.UUID, params UpdatePostParams) (*model.Post, error) {
@@ -174,19 +217,25 @@ func (r *PostRepository) Update(ctx context.Context, id uuid.UUID, params Update
 	if hasSummary {
 		summary = *params.Summary
 	}
+	var coverImg string
+	hasCoverImg := params.CoverImg != nil
+	if hasCoverImg {
+		coverImg = *params.CoverImg
+	}
 	return scanPost(r.DB.QueryRow(ctx, `
 		UPDATE posts
 		SET category_id = COALESCE($2, category_id),
 		    slug = COALESCE($3, slug),
 		    title = COALESCE($4, title),
 		    summary = CASE WHEN $5 THEN NULLIF($6, '') ELSE summary END,
-		    content = COALESCE($7, content),
-		    tags = COALESCE($8, tags),
+		    cover_img = CASE WHEN $7 THEN NULLIF($8, '') ELSE cover_img END,
+		    content = COALESCE($9, content),
+		    tags = COALESCE($10, tags),
 		    updated_at = NOW()
 		WHERE id = $1
 		RETURNING id, author_id, category_id, slug, title, COALESCE(summary, ''),
-		          content, tags, status, published_at, created_at, updated_at
-	`, id, params.CategoryID, params.Slug, params.Title, hasSummary, summary, params.Content, params.Tags))
+		          cover_img, content, tags, status, published_at, created_at, updated_at
+	`, id, params.CategoryID, params.Slug, params.Title, hasSummary, summary, hasCoverImg, coverImg, params.Content, params.Tags))
 }
 
 func (r *PostRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -206,7 +255,7 @@ func (r *PostRepository) Publish(ctx context.Context, id uuid.UUID) (*model.Post
 		SET status = 'published', published_at = COALESCE(published_at, NOW()), updated_at = NOW()
 		WHERE id = $1 AND status = 'draft'
 		RETURNING id, author_id, category_id, slug, title, COALESCE(summary, ''),
-		          content, tags, status, published_at, created_at, updated_at
+		          cover_img, content, tags, status, published_at, created_at, updated_at
 	`, id))
 }
 
@@ -216,23 +265,23 @@ func (r *PostRepository) Withdraw(ctx context.Context, id uuid.UUID) (*model.Pos
 		SET status = 'draft', updated_at = NOW()
 		WHERE id = $1 AND status = 'published'
 		RETURNING id, author_id, category_id, slug, title, COALESCE(summary, ''),
-		          content, tags, status, published_at, created_at, updated_at
+		          cover_img, content, tags, status, published_at, created_at, updated_at
 	`, id))
 }
 
 const postSelect = `
 	SELECT id, author_id, category_id, slug, title, COALESCE(summary, ''),
-	       content, tags, status, published_at, created_at, updated_at
+	       cover_img, content, tags, status, published_at, created_at, updated_at
 	FROM posts`
 
 const postSummarySelect = `
 	SELECT id, author_id, category_id, slug, title, COALESCE(summary, ''),
-	       tags, status, published_at, created_at, updated_at
+	       cover_img, tags, status, published_at, created_at, updated_at
 	FROM posts`
 
 const publicPostListSelect = `
 	SELECT p.id, p.author_id, p.category_id, p.slug, p.title, COALESCE(p.summary, ''),
-	       p.tags, p.published_at,
+	       p.cover_img, p.tags, p.published_at,
 	       u.nickname, COALESCE(u.avatar_url, ''), c.name, c.slug
 	FROM posts p
 	JOIN users u ON u.id = p.author_id
@@ -240,7 +289,7 @@ const publicPostListSelect = `
 
 const publicPostDetailSelect = `
 	SELECT p.id, p.author_id, p.category_id, p.slug, p.title, COALESCE(p.summary, ''),
-	       p.content, p.tags, p.published_at,
+	       p.cover_img, p.content, p.tags, p.published_at,
 	       u.nickname, COALESCE(u.avatar_url, ''), c.name, c.slug
 	FROM posts p
 	JOIN users u ON u.id = p.author_id
@@ -250,7 +299,7 @@ func scanPost(row rowScanner) (*model.Post, error) {
 	var post model.Post
 	if err := row.Scan(
 		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
-		&post.Summary, &post.Content, &post.Tags, &post.Status, &post.PublishedAt,
+		&post.Summary, &post.CoverImg, &post.Content, &post.Tags, &post.Status, &post.PublishedAt,
 		&post.CreatedAt, &post.UpdatedAt,
 	); err != nil {
 		return nil, err
@@ -262,7 +311,7 @@ func scanPostSummary(row rowScanner) (*model.PostSummary, error) {
 	var post model.PostSummary
 	if err := row.Scan(
 		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
-		&post.Summary, &post.Tags, &post.Status, &post.PublishedAt,
+		&post.Summary, &post.CoverImg, &post.Tags, &post.Status, &post.PublishedAt,
 		&post.CreatedAt, &post.UpdatedAt,
 	); err != nil {
 		return nil, err
@@ -274,7 +323,7 @@ func scanPublicPostList(row rowScanner) (*model.PublicPost, error) {
 	var post model.PublicPost
 	if err := row.Scan(
 		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
-		&post.Summary, &post.Tags, &post.PublishedAt, &post.AuthorNickname, &post.AuthorAvatarURL,
+		&post.Summary, &post.CoverImg, &post.Tags, &post.PublishedAt, &post.AuthorNickname, &post.AuthorAvatarURL,
 		&post.CategoryName, &post.CategorySlug,
 	); err != nil {
 		return nil, err
@@ -286,7 +335,7 @@ func scanPublicPostDetail(row rowScanner) (*model.PublicPost, error) {
 	var post model.PublicPost
 	if err := row.Scan(
 		&post.ID, &post.AuthorID, &post.CategoryID, &post.Slug, &post.Title,
-		&post.Summary, &post.Content, &post.Tags, &post.PublishedAt,
+		&post.Summary, &post.CoverImg, &post.Content, &post.Tags, &post.PublishedAt,
 		&post.AuthorNickname, &post.AuthorAvatarURL, &post.CategoryName, &post.CategorySlug,
 	); err != nil {
 		return nil, err

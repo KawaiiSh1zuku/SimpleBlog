@@ -4,6 +4,7 @@ import (
 	"github.com/KawaiiSh1zuku/SimpleBlog/internal/handler"
 	appmiddleware "github.com/KawaiiSh1zuku/SimpleBlog/internal/middleware"
 	"github.com/go-chi/chi/v5"
+	"time"
 )
 
 func PublicRouter(
@@ -13,6 +14,8 @@ func PublicRouter(
 	turnstile appmiddleware.TurnstileVerifier,
 ) chi.Router {
 	r := newRouter()
+	searchLimiter := appmiddleware.NewIPRateLimiter(10, time.Minute)
+	r.With(searchLimiter.Limit).Get("/search", publicHandler.SearchPosts)
 	r.Get("/posts", publicHandler.ListPosts)
 	r.Get("/posts/{slug}/comments", commentHandler.ListPublic)
 	r.With(appmiddleware.TurnstileMiddleware(turnstile)).Post("/posts/{slug}/comments", commentHandler.CreatePublic)

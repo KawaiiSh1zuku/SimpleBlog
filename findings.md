@@ -272,3 +272,40 @@
 
 - jwtauth v5 的 HS256 signer 要求 `[]byte` key；组合根此前把环境变量字符串原样传入，构造阶段不报错，直到登录 Encode 才返回 invalid key type。
 - service 单元测试一直使用 `[]byte`，因此未覆盖组合根的类型偏差；新增 server 级签发/验证测试锁定真实初始化路径。
+
+## 2026-08-22 文章头图与全文搜索
+
+- 用户纠正需求：保留现有 `GET /posts?tag=...` 精确标签筛选，同时新增独立全文搜索 API。
+- 搜索采用 `GET /search?q=...&limit=...&cursor=...`，只匹配 published 文章，搜索 title/summary/content，按 `(published_at,id)` 倒序并复用公开游标。
+- PostgreSQL 使用 `pg_trgm` 和 published-only 组合表达式 GIN 索引；相比内置词典 tsvector，对中英文 Markdown 包含搜索更符合当前单站点博客，不引入外部搜索服务。
+- cover_img 数据库列为 nullable TEXT；model/响应使用 `*string`。非空值只接受无 userinfo 的绝对 HTTP(S) URL，更新传空字符串清除。
+- 本轮开始时工作区已有 RSS URL、Turnstile header、CORS、统一 data、S3 路径等用户/前序未提交改动；实现必须保留并共同验证。
+- 仅参数绑定不足以定义正确的 LIKE 搜索语义：`%` 和 `_` 虽不会造成 SQL 注入，但会成为通配符并扩大结果集；repository 需先转义反斜杠、百分号和下划线，再配合固定 `ESCAPE '\\'` 子句。
+- 本机 PostgreSQL 可成功启用 pg_trgm 并应用全部 migration；真实 repository 测试确认搜索投影中的 cover_img 扫描顺序与 SQL 一致，避免只靠编译无法发现的行扫描错位。
+
+## 2026-08-22 正文首图自动头图
+
+- 自动提取放在 PostService，避免 handler 或前端分别实现导致创建/更新语义漂移。
+- 不引入完整 Markdown 渲染依赖：Markdown 只识别常用内联图片 `![alt](url)`；HTML 图片使用 `golang.org/x/net/html` tokenizer 读取真实 img/src 属性。
+- 提取前屏蔽 fenced code、行内 code，HTML tokenizer 本身忽略注释并把 script 内容作为文本，避免把示例代码中的图片误当头图。
+- 候选仍复用 cover_img 的绝对 HTTP(S)、无 userinfo、最大长度校验；相对 URL、data/javascript 协议不入库，并继续寻找后续第一个合法候选。
+- cover_img 非空时直接设置；保存后的值为空时从最终正文回填，因此显式空字符串也会触发。正文无合法图片时空字符串清除为 NULL；字段缺失时保留已有 cover，只有当前值为空才回填。
+
+## 2026-08-29 Mock 服务
+
+- 用户要求在 `/mock` 下新增可运行的 mock 服务，至少包含 10 篇文章、每篇不同评论数量、数条友链，并覆盖各种现有业务状态。
+- 当前真实契约的有限状态集合为：文章 `draft/published`，评论 `visible/hidden/deleted`，用户角色 `admin/contributor`；公开文章与标签聚合必须隔离草稿。
+- JSON 业务响应始终为 HTTP 200，响应体固定 `{code,msg,data}`；RSS 是 XML 和真实 HTTP 状态的例外。
+- 方案比较：复用生产 router/service 需要替换大量 repository 并处理 JWT/S3/Turnstile 依赖；独立内存服务能保持零外部依赖，并可直接按当前 DTO/路由契约实现，推荐后者。
+- `cover_img` 必须保持当前字段名和 nullable/空值语义；种子应同时覆盖有头图、无头图、正文首图、空标签、多标签、已发布和草稿。
+- 工作区开始时已有大量未提交业务与文档改动；本任务只追加 `/mock` 及必要文档/规划记录，不回退或认领现有改动。
+- Mock 将覆盖当前所有主要路由组：`/service`、`/auth`、`/admin`、`/rss` 和公开根路由；上传只返回假预签名数据，不承诺实际对象存储上传。
+- 为支持真实前端操作，后台发布/撤回、评论审核和用户/分类/文章/友链 CRUD 使用带锁内存状态；进程重启恢复固定种子。
+- Mock 认证使用显式测试账号与固定 Bearer token 区分 admin/contributor；Turnstile 只在需要的端点检查非空请求头，不调用外部服务。
+- 10 篇文章将固定覆盖每篇 0 到 9 条评论（总计 45 条），同时分布根评论、嵌套回复以及 visible/hidden/deleted 状态；草稿评论只通过后台可见。
+- 生产权限语义：contributor 只能查看和操作自己作者 ID 下的文章与评论；admin 可管理全部，并独占用户、分类和友链 CRUD。
+- 生产状态转换会拒绝冲突操作：只能发布 draft、撤回 published、隐藏 visible、显示 hidden，deleted 不能重复删除。
+- RSS 仅包含 published 文章与其 visible 评论，使用 RSS 2.0 XML；这是统一 JSON envelope 的明确例外。
+- 已向用户询问是否将 mock 入口同步到根 README 与 `docs/testing.md`；确认前仅创建自包含的 `mock/README.md`，不触碰已有未提交文档。
+- 用户环境的 `all_proxy`、`http_proxy`、`https_proxy` 均指向 `127.0.0.1:7890`；PowerShell `Invoke-RestMethod` 对本机 mock 也发生代理连接重置。实际 smoke 应显式使用 `curl.exe --noproxy '*'` 或配置 `NO_PROXY=127.0.0.1,localhost`。
+- 最终本机资源改为 mock 动态生成 PNG，cover/avatar/favicon 及上传 public_url 不依赖境外图片服务；默认绝对资源 URL 绑定 `localhost:8090`。

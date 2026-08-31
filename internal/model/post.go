@@ -24,6 +24,7 @@ type Post struct {
 	Slug        string
 	Title       string
 	Summary     string
+	CoverImg    *string
 	Content     string
 	Tags        []string
 	Status      PostStatus
@@ -41,6 +42,7 @@ type PostSummary struct {
 	Slug        string
 	Title       string
 	Summary     string
+	CoverImg    *string
 	Tags        []string
 	Status      PostStatus
 	PublishedAt *time.Time

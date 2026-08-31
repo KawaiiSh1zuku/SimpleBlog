@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -66,8 +67,9 @@ func (s *UploadService) Create(
 		return nil, ErrInvalidInput
 	}
 
-	objectKey := "posts/" + actor.ID.String() + "/" + uuid.NewString() + extension
-	expiresAt := s.Now().UTC().Add(UploadURLLifetime)
+	now := s.Now()
+	objectKey := path.Join("blog", "uploads", now.Format("20060102"), uuid.NewString()+extension)
+	expiresAt := now.UTC().Add(UploadURLLifetime)
 	uploadURL, fields, err := s.Signer.PresignPost(ctx, objectKey, input.ContentType, input.Size, expiresAt)
 	if err != nil {
 		return nil, err

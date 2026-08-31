@@ -14,12 +14,15 @@
 }
 ```
 
+`data` 字段始终存在：列表为空时返回 `[]`，无业务数据或错误响应返回 `null`，不会省略字段。
+
 失败示例：
 
 ```json
 {
   "code": 403,
-  "msg": "permission denied"
+  "msg": "permission denied",
+  "data": null
 }
 ```
 
@@ -97,6 +100,7 @@ GET  /auth/me
 ```text
 GET /posts
 GET /posts/{slug}
+GET /search
 GET /categories
 GET /tags
 ```
@@ -119,6 +123,7 @@ GET /tags
       "slug": "first-post",
       "title": "First Post",
       "summary": "summary",
+      "cover_img": "https://cdn.example.com/cover.webp",
       "tags": ["go"],
       "published_at": "2026-08-18T12:00:00Z",
       "author": {"id": "uuid", "nickname": "Writer", "avatar_url": ""},
@@ -130,6 +135,17 @@ GET /tags
 ```
 
 `next_cursor` 仅在存在下一页时返回。游标按 `(published_at, id)` 降序定位，翻页请求必须继续携带相同 category/tag 筛选条件。
+
+全文字段搜索使用独立接口：
+
+```text
+GET /search?q=postgresql&limit=20&cursor=opaque-cursor
+```
+
+- `q` 必填，trim 后为 1 到 100 个 Unicode 字符，仅接受单行纯文本。
+- 搜索范围为已发布文章的 title、summary 和 Markdown/LaTeX content，大小写不敏感。
+- 返回结构、`limit` 范围和游标规则与 `GET /posts` 相同，结果仍按 `(published_at, id)` 倒序，而不是相关度排序。
+- `/posts?tag=...` 保留为规范化 tag 的精确筛选；全文搜索不替代标签筛选。
 
 公开端只能返回 published 文章。列表不返回 content；详情返回 Markdown + LaTeX 原文，不返回服务端渲染 HTML。作者响应只包含 id、nickname、avatar_url，不包含登录用户名。
 
@@ -159,7 +175,7 @@ POST /posts/{slug}/comments
 - 只能评论已发布文章。
 - 公开响应绝不包含 email。
 - 服务端可读取 email，仅用于对 `trim + lowercase` 后的值计算 Gravatar MD5；响应返回 `avatar_url`，镜像基址由 `GRAVATAR_BASE_URL` 配置。
-- Turnstile 请求头固定为 `X-Turnstile-Token`；缺失或验证失败分别返回业务 code 401/403。
+- Turnstile 请求头固定为 `X-Turnstile-Response`；缺失或验证失败分别返回业务 code 401/403。
 - nickname 最大 80 个 Unicode 字符，email 必须是单一有效邮箱地址，parent_id 必须属于同一篇文章。
 - nickname 与 content 是纯文本：服务端统一换行并 trim 后保存，拒绝 `<`、`>` 和危险控制字符；content 允许换行和制表符。
 - 允许回复 hidden/deleted 节点；回复仍保留真实 parent_id。
@@ -231,6 +247,7 @@ POST   /admin/posts/{id}/withdraw
   "slug": "first-post",
   "title": "First Post",
   "summary": "optional summary",
+  "cover_img": "https://cdn.example.com/cover.webp",
   "content": "# Markdown\n\n$$E = mc^2$$",
   "tags": ["go", "latex"]
 }
@@ -243,6 +260,9 @@ POST   /admin/posts/{id}/withdraw
 - 发布和撤回使用显式动作路由。
 - 新文章固定为 draft；首次发布写入 published_at，撤回和再次发布保留原发布时间。
 - slug 由客户端提供，服务端转为小写，只允许字母、数字和单连字符，最大 160 字符。
+- cover_img 可省略或为空；非空时必须是无 userinfo 的绝对 HTTP(S) URL，最大 2048 个 Unicode 字符。
+- 创建时 cover_img 为空，服务端会按正文顺序选择第一张合法绝对 HTTP(S) 图片作为头图。自动识别常用 Markdown 内联图片 `![alt](url)` 和 HTML `<img src="url">`；代码块、行内代码、HTML 注释、相对地址及非 HTTP(S) 地址会被忽略。
+- PATCH 保存后的 cover_img 为空时，服务端从本次保存后的正文自动回填；因此前端显式传空字符串且正文有图时也会生成头图。正文没有合法图片时，空字符串会清除并存为 NULL。未传 cover_img 且已有头图时不会被正文变化覆盖。
 - tags 会被 trim、转小写、去空、去重并保序，最多 10 个，每项最多 30 个 Unicode 字符。
 - content 原样保存 Markdown 与 LaTeX 文本，不在服务端渲染。
 - `GET /admin/posts` 支持 `limit`（默认 50，最大 100）和不透明 `cursor`，响应为 `{ "items": [...], "next_cursor": "..." }`。
@@ -301,15 +321,15 @@ POST /admin/uploads/presign
   "msg": "success",
   "data": {
     "method": "POST",
-    "object_key": "posts/user-id/uuid.webp",
+    "object_key": "blog/uploads/20260822/uuid.webp",
     "upload_url": "https://s3.example/...",
     "fields": {
-      "key": "posts/user-id/uuid.webp",
+      "key": "blog/uploads/20260822/uuid.webp",
       "Content-Type": "image/webp",
       "policy": "base64-policy",
       "x-amz-signature": "signature"
     },
-    "public_url": "https://cdn.example/posts/user-id/uuid.webp",
+    "public_url": "https://cdn.example/blog/uploads/20260822/uuid.webp",
     "expires_at": "2026-08-18T12:10:00Z"
   }
 }
@@ -332,6 +352,7 @@ POST /admin/uploads/presign
 - MIME：`image/jpeg`、`image/png`、`image/webp`、`image/gif`。
 - 单文件最大 10 MiB。
 - 服务端生成 object key，不接受客户端提供任意对象路径。
+- object key 固定为 `blog/uploads/YYYYMMDD/{uuid}.{ext}`，日期使用服务进程本地时区。
 - policy 同时约束精确 Content-Type 和请求声明的精确字节数，签名 10 分钟后过期。
 - filename 仅作元数据校验，不参与 object key；服务端按 MIME 决定扩展名。
 - admin 与 contributor 均可申请签名，未登录请求返回业务 code 401。
@@ -346,7 +367,7 @@ GET /rss/comment
 - 两个 feed 均返回最新 50 条，按时间倒序。
 - 文章 feed 只包含 published 文章，description 使用纯文本 summary，不嵌入完整正文或可执行 HTML。
 - 评论 feed 只包含 published 文章下的 visible 评论，不查询或输出邮箱。
-- 文章链接为 `{SITE_BASE_URL}/posts/{slug}`；评论链接追加 `#comment-{commentID}`。
+- 文章链接为前端地址 `{SITE_BASE_URL}/articles/{slug}`；评论链接为对应文章地址追加 `#comment-{commentID}`。
 - 所有 XML 由 `encoding/xml` 编码，条目内容不做字符串拼接。
 
 ## 12. 友情链接
@@ -372,7 +393,7 @@ GET /service/test_turnstile
 
 `/service/ping` 返回当前识别的客户端 IP，不访问数据库，是轻量存活端点而非数据库就绪检查。
 
-`/service/test_turnstile` 需要 `X-Turnstile-Token` 请求头，仅用于检查 Turnstile siteverify 配置。缺失或验证失败遵循统一业务响应协议。
+`/service/test_turnstile` 需要 `X-Turnstile-Response` 请求头，仅用于检查 Turnstile siteverify 配置。缺失或验证失败遵循统一业务响应协议。
 
 ## 14. 输入与分页限制
 

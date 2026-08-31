@@ -50,6 +50,7 @@ type CreatePostInput struct {
 	Slug       string
 	Title      string
 	Summary    string
+	CoverImg   string
 	Content    string
 	Tags       []string
 }
@@ -59,6 +60,7 @@ type UpdatePostInput struct {
 	Slug       *string
 	Title      *string
 	Summary    *string
+	CoverImg   *string
 	Content    *string
 	Tags       *[]string
 }
@@ -103,13 +105,18 @@ func (s *PostService) Create(ctx context.Context, actor *model.User, input Creat
 	if input.CategoryID == uuid.Nil {
 		return nil, ErrInvalidInput
 	}
-	slug, title, summary, tags, err := validatePost(input.Slug, input.Title, input.Summary, input.Content, input.Tags)
+	slug, title, summary, coverImg, tags, err := validatePost(
+		input.Slug, input.Title, input.Summary, input.CoverImg, input.Content, input.Tags,
+	)
 	if err != nil {
 		return nil, err
 	}
+	if coverImg == nil {
+		coverImg = firstPostImageURL(input.Content)
+	}
 	post := &model.Post{
 		ID: uuid.New(), AuthorID: actor.ID, CategoryID: input.CategoryID,
-		Slug: slug, Title: title, Summary: summary, Content: input.Content,
+		Slug: slug, Title: title, Summary: summary, CoverImg: coverImg, Content: input.Content,
 		Tags: tags, Status: model.PostStatusDraft,
 	}
 	created, err := s.Posts.Create(ctx, post)
@@ -117,8 +124,22 @@ func (s *PostService) Create(ctx context.Context, actor *model.User, input Creat
 }
 
 func (s *PostService) Update(ctx context.Context, actor *model.User, id uuid.UUID, input UpdatePostInput) (*model.Post, error) {
-	if _, err := s.authorizePost(ctx, actor, id); err != nil {
+	current, err := s.authorizePost(ctx, actor, id)
+	if err != nil {
 		return nil, err
+	}
+	shouldDeriveCover := current.CoverImg == nil
+	if input.CoverImg != nil {
+		shouldDeriveCover = strings.TrimSpace(*input.CoverImg) == ""
+	}
+	if shouldDeriveCover {
+		content := current.Content
+		if input.Content != nil {
+			content = *input.Content
+		}
+		if coverImg := firstPostImageURL(content); coverImg != nil {
+			input.CoverImg = coverImg
+		}
 	}
 	params, err := validatePostUpdate(input)
 	if err != nil {
@@ -179,23 +200,31 @@ func (s *PostService) authorizePost(ctx context.Context, actor *model.User, id u
 	return post, nil
 }
 
-func validatePost(slug, title, summary, content string, tags []string) (string, string, string, []string, error) {
+func validatePost(slug, title, summary, coverImg, content string, tags []string) (string, string, string, *string, []string, error) {
 	slug, ok := normalizeSlug(slug, 160)
 	title = strings.TrimSpace(title)
 	if !ok || !validText(title, 1, 200) || !validText(summary, 0, maxPostSummaryRunes) ||
 		strings.TrimSpace(content) == "" || len(content) > MaxPostContentBytes {
-		return "", "", "", nil, ErrInvalidInput
+		return "", "", "", nil, nil, ErrInvalidInput
+	}
+	coverImg, ok = validExternalURL(coverImg, true)
+	if !ok {
+		return "", "", "", nil, nil, ErrInvalidInput
 	}
 	normalizedTags, err := normalizeTags(tags)
 	if err != nil {
-		return "", "", "", nil, err
+		return "", "", "", nil, nil, err
 	}
-	return slug, title, strings.TrimSpace(summary), normalizedTags, nil
+	var normalizedCoverImg *string
+	if coverImg != "" {
+		normalizedCoverImg = &coverImg
+	}
+	return slug, title, strings.TrimSpace(summary), normalizedCoverImg, normalizedTags, nil
 }
 
 func validatePostUpdate(input UpdatePostInput) (repository.UpdatePostParams, error) {
 	params := repository.UpdatePostParams{CategoryID: input.CategoryID, Summary: input.Summary}
-	if input.CategoryID == nil && input.Slug == nil && input.Title == nil && input.Summary == nil && input.Content == nil && input.Tags == nil {
+	if input.CategoryID == nil && input.Slug == nil && input.Title == nil && input.Summary == nil && input.CoverImg == nil && input.Content == nil && input.Tags == nil {
 		return params, ErrInvalidInput
 	}
 	if input.CategoryID != nil && *input.CategoryID == uuid.Nil {
@@ -221,6 +250,13 @@ func validatePostUpdate(input UpdatePostInput) (repository.UpdatePostParams, err
 			return params, ErrInvalidInput
 		}
 		params.Summary = &value
+	}
+	if input.CoverImg != nil {
+		value, ok := validExternalURL(*input.CoverImg, true)
+		if !ok {
+			return params, ErrInvalidInput
+		}
+		params.CoverImg = &value
 	}
 	if input.Content != nil {
 		if strings.TrimSpace(*input.Content) == "" || len(*input.Content) > MaxPostContentBytes {

@@ -21,4 +21,6 @@ $env:TEST_DATABASE_URL = "postgres://user:password@localhost:5432/postgres"
 go test ./migrations -run TestInitialSchema -v
 ```
 
-测试在事务或独立连接中创建随机 schema，并在结束时回滚或删除。`000003_rss_links_security.sql` 增加友情链接、RSS 评论索引和评论纯文本约束；升级环境仍只执行尚未应用的文件。
+测试在事务或独立连接中创建随机 schema，并在结束时回滚或删除。`000003_rss_links_security.sql` 增加友情链接、RSS 评论索引和评论纯文本约束；`000004_post_cover_search.sql` 增加文章头图字段并启用 `pg_trgm` 全文字段子串搜索索引。升级环境仍只执行尚未应用的文件。
+
+执行 `000004` 的 migration 账号必须能在目标数据库运行 `CREATE EXTENSION IF NOT EXISTS pg_trgm`。扩展只需安装一次，应用运行账号不需要该 DDL 权限。

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -43,8 +44,8 @@ func TestUploadServiceCreatesServerOwnedPostPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	prefix := "posts/" + actor.ID.String() + "/"
-	if !strings.HasPrefix(upload.ObjectKey, prefix) || !strings.HasSuffix(upload.ObjectKey, ".webp") {
+	keyPattern := regexp.MustCompile(`^blog/uploads/20260818/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.webp$`)
+	if !keyPattern.MatchString(upload.ObjectKey) {
 		t.Fatalf("object key %q is not server-owned", upload.ObjectKey)
 	}
 	if strings.Contains(upload.ObjectKey, "not-used") || signer.objectKey != upload.ObjectKey {
@@ -58,6 +59,23 @@ func TestUploadServiceCreatesServerOwnedPostPolicy(t *testing.T) {
 	}
 	if upload.Method != "POST" || upload.PublicURL != "https://cdn.example.com/assets/"+upload.ObjectKey {
 		t.Fatalf("unexpected upload response: %+v", upload)
+	}
+}
+
+func TestUploadServiceUsesLocalDateForObjectKey(t *testing.T) {
+	signer := &uploadSignerStub{}
+	location := time.FixedZone("UTC+8", 8*60*60)
+	service := NewUploadService(signer, "https://cdn.example.com")
+	service.Now = func() time.Time { return time.Date(2026, 8, 19, 0, 30, 0, 0, location) }
+
+	upload, err := service.Create(context.Background(), &model.User{ID: uuid.New(), Role: model.RoleAdmin}, CreateUploadInput{
+		Filename: "image.png", ContentType: "image/png", Size: 1,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if !strings.HasPrefix(upload.ObjectKey, "blog/uploads/20260819/") {
+		t.Fatalf("object key uses wrong calendar date: %q", upload.ObjectKey)
 	}
 }
 
